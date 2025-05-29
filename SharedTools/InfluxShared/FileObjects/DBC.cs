@@ -27,7 +27,7 @@ namespace InfluxShared.FileObjects
         public string DisplayType => Type switch
         {
             DBCSignalType.Mode => "Mode",
-            DBCSignalType.ModeDependent => "Mode dependent",
+            DBCSignalType.ModeDependent => "Mode dependent - 0x" + Mode.ToString("X"),
             _ => ""
         };
         public UInt64 Mode { get; set; }   //If the signal is Mode Dependent
@@ -105,6 +105,7 @@ namespace InfluxShared.FileObjects
         public string FileNameSerialized { get; set; } = "";  //Imeto na DBC-to zapisano kato serialized file
         public string FileNameNoExt => Path.GetFileNameWithoutExtension(FileName);
         public string FileLocation => Path.GetDirectoryName(FileName);
+        public List<string> NodeNames = ["Influx_Logger"];
         public List<DbcMessage> Messages { get; set; }
 
         public bool Equals(DBC dbc)
@@ -122,7 +123,7 @@ namespace InfluxShared.FileObjects
             Messages = new List<DbcMessage>();
         }
 
-        public static DBC CreateMode(List<PollingItem> ItemList, byte UDSService)
+        public static DBC CreateMode(List<PollingItem> ItemList, byte UDSService, byte ModeSize)
         {
             DBC dbc = new DBC();
             var groupedItems = ItemList.Where(uds => uds.UDSServiceID == UDSService).GroupBy(i => i.RxIdent).Select(grp => grp.ToList()).ToList();
@@ -142,7 +143,7 @@ namespace InfluxShared.FileObjects
                     Name = "mode" + UDSService.ToString("X2"),
                     ItemType = 0,
                     StartBit = 0,
-                    BitCount = 40,
+                    BitCount = (ushort)(ModeSize * 8),
                     ByteOrder = DBCByteOrder.Intel,
                     Type = DBCSignalType.Mode,
                     ValueType = DBCValueType.Unsigned,
@@ -156,18 +157,129 @@ namespace InfluxShared.FileObjects
                     newSig.Type = DBCSignalType.ModeDependent;
                     newSig.UDS = UDSService;
                     if (UDSService == 0x22)
-                        //newSig.Mode = (UInt64)(sig.Ident & 0xFFFF) << 8 | 0x62;
                         newSig.Mode = 0x62 |
                             (UInt64)(sig.Ident & 0x00FF) << 16 |
                             (sig.Ident & 0xFF00);
                     else if (UDSService == 0x23)
-                        //newSig.Mode = (UInt64)(sig.Ident & 0xFFFFFFFF) << 8 | 0x63;
                         newSig.Mode = 0x63 |
                             (UInt64)(sig.Ident & 0x000000FF) << 32 | (sig.Ident & 0x0000FF00) << 16 | 
                             (sig.Ident & 0x00FF0000) | (sig.Ident & 0xFF000000) >> 16;
 
                     newSig.Ident = sig.RxIdent;
                     newSig.StartBit += (UInt16)(msg.Items[0].StartBit + msg.Items[0].BitCount);
+                    msg.Items.Add(newSig);
+                    msg.DLC = (byte)Math.Max(msg.DLC, (newSig.StartBit + newSig.BitCount + 7) / 8);
+                }
+            }
+
+            return dbc;
+        }
+
+        public static DBC CreateMode2A2C(List<PollingItem> ItemList)
+        {
+            DBC dbc = new DBC();
+            var groupedItems = ItemList.Where(uds => uds.UDSServiceID == 0x2A).GroupBy(i => i.RxIdent).Select(grp => grp.ToList()).ToList();
+            foreach (var items in groupedItems)
+            {
+                var msg = new DbcMessage()
+                {
+                    Name = "Mode 2A2C",
+                    CANID = items[0].RxIdent,
+                    DLC = 8,
+                    MsgType = DBCMessageType.Standard
+                };
+
+                dbc.Messages.Add(msg);
+                msg.Items.Add(new DbcItem()
+                {
+                    Name = "mode 2A2C",
+                    ItemType = 0,
+                    StartBit = 0,
+                    BitCount = 8,
+                    ByteOrder = DBCByteOrder.Intel,
+                    Type = DBCSignalType.Mode,
+                    ValueType = DBCValueType.Unsigned,
+                    //UDS = 0x2A,
+                });
+
+                byte sigMode = 0;
+                byte sigPos;
+                byte sigEnd = 1;
+
+                foreach (var sig in items)
+                {
+                    DbcItem newSig = new DbcItem();
+                    sig.CopyProperties(newSig);
+                    newSig.Type = DBCSignalType.ModeDependent;
+                    newSig.UDS = 0;// 0x2A;
+                    newSig.Ident = sig.RxIdent;
+
+                    sigPos = sigEnd;
+                    sigEnd = (byte)(sigPos + newSig.BitCount / 8);
+                    if (sigEnd > 8)
+                    {
+                        sigPos = 1;
+                        sigEnd = (byte)(sigPos + newSig.BitCount / 8);
+                        sigMode++;
+                    }
+
+                    newSig.Mode = sigMode;
+                    newSig.StartBit += (UInt16)(sigPos * 8);
+
+                    msg.Items.Add(newSig);
+                    msg.DLC = (byte)Math.Max(msg.DLC, (newSig.StartBit + newSig.BitCount + 7) / 8);
+                }
+            }
+
+            return dbc;
+        }
+
+        public static DBC CreateXCP(List<PollingItem> ItemList, uint CRO)
+        {
+            DBC dbc = new DBC();
+
+            dbc.Messages.Add(new DbcMessage()
+            {
+                Name = "CRO",
+                CANID = CRO,
+                DLC = 8,
+                MsgType = DBCMessageType.Standard
+            });
+
+            var groupedItems = ItemList.Where(uds => uds.Service == ServiceType.XCP).GroupBy(i => i.UDSServiceID);
+            foreach (var group in groupedItems)
+            {
+                var items = group.ToList();
+                var msg = new DbcMessage()
+                {
+                    Name = "DTO ",
+                    CANID = items[0].RxIdent,
+                    DLC = 8,
+                    MsgType = DBCMessageType.Standard
+                };
+
+                dbc.Messages.Add(msg);
+
+                msg.Items.Add(new DbcItem()
+                {
+                    Name = "DTOPID",
+                    ItemType = 0,
+                    StartBit = 0,
+                    BitCount = 8,
+                    ByteOrder = DBCByteOrder.Intel,
+                    Type = DBCSignalType.Mode,
+                    ValueType = DBCValueType.Unsigned,
+                });
+
+                foreach (var sig in items)
+                {
+                    DbcItem newSig = new DbcItem();
+                    sig.CopyProperties(newSig);
+                    newSig.Type = DBCSignalType.ModeDependent;
+                    newSig.UDS = 0;
+                    newSig.Ident = sig.RxIdent;
+                    //newSig.StartBit += 8;
+
                     msg.Items.Add(newSig);
                     msg.DLC = (byte)Math.Max(msg.DLC, (newSig.StartBit + newSig.BitCount + 7) / 8);
                 }

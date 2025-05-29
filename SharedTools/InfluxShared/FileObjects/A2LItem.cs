@@ -7,9 +7,9 @@
 
         }
 
-        public A2LItemType MsgType { get; set; }
-        public A2LValueТype Datatype { get; set; }
-        public A2LByteOrder ByteOrder { get; set; }
+        //public A2LItemType MsgType { get; set; }
+       // public A2LValueТype Datatype { get; set; }
+      //  public A2LByteOrder ByteOrder { get; set; }
         public byte ShLeft { get; set; }
         public byte ShRight { get; set; }
         public uint BitMask { get; set; }

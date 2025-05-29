@@ -57,13 +57,13 @@ namespace InfluxShared.FileObjects
     {
         public ExportDbcCollection dbcCollection;
         public ExportLdfCollection ldfCollection;
-        public ExportA2LCollection a2lCollection;
+        //public ExportA2LCollection a2lCollection;
 
         public ExportCollections()
         {
             dbcCollection = new ExportDbcCollection();
             ldfCollection = new ExportLdfCollection();
-            a2lCollection = new ExportA2LCollection();
+            //a2lCollection = new ExportA2LCollection();
         }
     }
 
@@ -117,7 +117,7 @@ namespace InfluxShared.FileObjects
 
                     config.ldfCollection.AddMessage(channel.BusChannelIndex, msg).AddSignal(sig);
                 }
-                else if (channel is ReferenceA2LChannel)
+                /*else if (channel is ReferenceA2LChannel)
                 {
                     var a2l = ObjLibrary.A2LFiles.FirstOrDefault(d => d.FileNameSerialized == channel.FileName);
                     if (a2l is null)
@@ -127,7 +127,7 @@ namespace InfluxShared.FileObjects
                         break;
 
                     config.a2lCollection.AddItem(channel.BusChannelIndex, msg);
-                }
+                }*/
 
             return config;
         }
@@ -160,9 +160,9 @@ namespace InfluxShared.FileObjects
             return ldflist;
         }
 
-        public List<A2L> GetAssignedA2L()
+       /* public List<A2lParser> GetAssignedA2L()
         {
-            var a2llist = new List<A2L>();
+            var a2llist = new List<A2lParser>();
             foreach (var channel in this.OfType<ReferenceA2LChannel>())
             {
                 var a2l = ObjLibrary.A2LFiles.FirstOrDefault(d => d.FileNameSerialized == channel.FileName);
@@ -172,7 +172,7 @@ namespace InfluxShared.FileObjects
                     a2llist.Add(a2l);
             }
             return a2llist;
-        }
+        }*/
 
         public bool IsInUse(object obj)
         {
@@ -188,12 +188,12 @@ namespace InfluxShared.FileObjects
                     if (item.FileName == (obj as LDF).FileNameSerialized)
                         return true;
             }
-            else if (obj is A2L)
+           /* else if (obj is A2lParser)
             {
                 foreach (var item in this)
-                    if (item.FileName == (obj as A2L).FileNameSerialized)
+                    if (item.FileName == (obj as A2lParser).FileNameSerialized)
                         return true;
-            }
+            }*/
 
             return false;
         }

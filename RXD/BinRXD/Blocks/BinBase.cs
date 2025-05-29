@@ -42,14 +42,10 @@ namespace RXD.Blocks
         internal bool AddOverlap = false;
         internal virtual List<string> Inputs { get; set; } = new List<string>();
         internal virtual List<string> Outputs { get; set; } = new List<string>();
-        public void AddInput(string prop)
-        {
-            Inputs.Add(prop);
-        }
-        public void AddOutput(string prop)
-        {
-            Outputs.Add(prop);
-        }
+
+        public void AddInput(string prop) => Inputs.Add(prop);
+
+        public void AddOutput(string prop) => Outputs.Add(prop);
 
         public BinBase(BinHeader hs = null)
         {

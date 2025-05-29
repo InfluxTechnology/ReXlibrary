@@ -308,7 +308,10 @@ namespace InfluxShared.FileObjects
             {
                 TimeFormatType.Seconds => delegate (double ts) { return ts.ToString("0.00000"); }
                 ,
-                TimeFormatType.DateTime => delegate (double ts) { return DateTime.FromOADate(RealTime.ToOADate() + ts / 86400).ToString("dd/MM/yyyy HH:mm:ss.fff"); }
+                TimeFormatType.DateTime => delegate (double ts) { return 
+                    DateTime.FromOADate(RealTime.ToOADate() + ts / 86400).ToString("dd/MM/yyyy HH:mm:ss.") // .fff
+                    + ts.ToString("0.00000").Split('.')[1];
+                }
                 ,
                 _ => delegate (double ts) { return ""; }
                 ,

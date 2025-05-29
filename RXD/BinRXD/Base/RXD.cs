@@ -53,6 +53,9 @@ namespace RXD.Base
         public static byte[] EncryptionKeysBlob = null;
 
         public static UInt64 MaxTimeGap = 0; //100 * 1000 * 100; // Config[BinConfig.BinProp.TimeStampPrecision]
+        public static bool InternalTimestamp = false;
+        public static int InternalTimestampSize = 2;
+        public UInt64 TimeRoll = 0x100000000;
 
         static byte headersizebytes = 4;
         internal static UInt32 StructureOffset = 0;
@@ -78,6 +81,7 @@ namespace RXD.Base
 
         private BinRXD(string uri = "", Stream dataStream = null, Stream xsdStream = null)
         {
+            TimeRoll = InternalTimestamp ? (ulong)(1 << (InternalTimestampSize * 8)) : 0x100000000;
             rxdFullSize = 0;
             Error = "";
 
@@ -235,7 +239,7 @@ namespace RXD.Base
             const string pattern = "\\d{8}_\\d{6}";
             DateTime dt;
 
-            foreach (var dtstr in Regex.Matches(fn, pattern).Cast<Match>().Where(m => m.Success).Reverse())
+            foreach (var dtstr in Regex.Matches(fn, pattern, RegexOptions.RightToLeft ).Cast<Match>().Where(m => m.Success))
                 if (DateTime.TryParseExact(dtstr.Value, DateTimeFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out dt))
                     return dt;
 
@@ -289,6 +293,9 @@ namespace RXD.Base
                     Config = (BinConfig)BinBase.ReadNext(br);
                     if (Config == null)
                         return false;
+
+                    if (InternalTimestamp)
+                        Config[BinConfig.BinProp.TimeStampPrecision] = 1;
                     TimestampCoeff = Config[BinConfig.BinProp.TimeStampPrecision] * 0.000001;
                     if (Config[BinConfig.BinProp.GUID] == Guid.Empty)
                         return false;
@@ -661,7 +668,7 @@ namespace RXD.Base
                             void CheckTimeOverlap(ref UInt64 LastTimestamp, ref UInt64 TimeOffset)
                             {
                                 if (frame.data.Timestamp < LastTimestamp)
-                                    TimeOffset += 0x100000000;
+                                    TimeOffset += TimeRoll;
                                 LastTimestamp = frame.data.Timestamp;
                                 frame.data.Timestamp += TimeOffset - FileTimestamp;
                             }
@@ -806,7 +813,7 @@ namespace RXD.Base
             for (var i = 0; i <= UInt16.MaxValue; i++)
             {
                 LastTimestamp[i] = 0;
-                TimeOffset[i] = (this.TryGetValue(i, out BinBase b) && b.AddOverlap) ? 0x100000000 : (UInt64)0;
+                TimeOffset[i] = (this.TryGetValue(i, out BinBase b) && b.AddOverlap) ? TimeRoll : (UInt64)0;
             }
 
             bool isLastBlock = false;
@@ -817,7 +824,7 @@ namespace RXD.Base
                 double WriteData(DoubleData dd, UInt64 Timestamp, byte[] BinaryArray, ref UInt64 LastTimestamp, ref UInt64 TimeOffset)
                 {
                     if (Timestamp < LastTimestamp)
-                        TimeOffset += 0x100000000;
+                        TimeOffset += TimeRoll;
                     if (LastTimestamp > 0 && MaxTimeGap > 0 && Timestamp + TimeOffset - LastTimestamp > MaxTimeGap)
                     {
                         bigGapFound = true;
@@ -960,7 +967,7 @@ namespace RXD.Base
                     //FileTimestamp = (InitialTimestamp == 0 ? LowestTimestamp : Math.Min(LowestTimestamp, InitialTimestamp)) * TimestampCoeff;
 
                     if ((tc[i] as IRecordTimeAdapter).FloatTimestamp < LastTimestamp)
-                        TimeOffset += (double)0x100000000 * TimePrecison * 0.000001;
+                        TimeOffset += (double)TimeRoll * TimePrecison * 0.000001;
                     LastTimestamp = (tc[i] as IRecordTimeAdapter).FloatTimestamp;
                     (tc[i] as IRecordTimeAdapter).FloatTimestamp -= FileTimestamp;
                     (tc[i] as IRecordTimeAdapter).FloatTimestamp += TimeOffset;
@@ -1208,9 +1215,17 @@ namespace RXD.Base
                         if (propEl == null)
                             continue;
 
-                        var converter = TypeDescriptor.GetConverter(prop.Value.PropType);
-                        prop.Value.Value = converter.ConvertFrom(propEl.Value);
-                    }
+                        if (prop.Value.PropType == typeof(Single) || prop.Value.PropType == typeof(Double))
+                        {
+                            float.TryParse(propEl.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out float result);
+                            prop.Value.Value = result;
+                        }
+                        else
+                        {
+                            var converter = TypeDescriptor.GetConverter(prop.Value.PropType);
+                            prop.Value.Value = converter.ConvertFrom(propEl.Value);
+                        }
+                    }                    
                 }
 
                 // XML Sequence grouping
@@ -1282,7 +1297,10 @@ namespace RXD.Base
 
                 foreach (XElement group in xml.blocksNode.Elements())
                     foreach (XElement bin in group.Elements())
+                    {
                         Add(ReadBin(xml, bin));
+
+                    }
 
                 return true;
             }

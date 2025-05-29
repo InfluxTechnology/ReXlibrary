@@ -17,6 +17,8 @@
 
   <Import Project="..\..\..\SharedTools\InfluxShared\InfluxShared.projitems" Label="Shared" />
 
+  <Import Project="..\..\..\A2lParser\A2lParser.projitems" Label="Shared" />
+
   <ItemGroup>
     <Compile Remove="Objects\**" />
     <EmbeddedResource Remove="Objects\**" />

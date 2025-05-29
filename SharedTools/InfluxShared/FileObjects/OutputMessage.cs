@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 
 namespace InfluxShared.FileObjects
 {
@@ -98,9 +99,6 @@ namespace InfluxShared.FileObjects
             DLC = 8;
             Data = new byte[DLC];
         }
-
-
-
     }
 
     public static class OutputMessageListHelper
@@ -178,9 +176,13 @@ namespace InfluxShared.FileObjects
                 messages.Add(canMsg);
                 canMsg.CanID = cfgMsg.TxIdent;
                 canMsg.RxIdent = cfgMsg.RxIdent;
+                if (canMsg.CanID > 0x7FF)
+                    canMsg.CanMsgType = DBCMessageType.Extended;
                 canMsg.Data = cfgMsg.Data;
                 canMsg.DLC = 8;// (byte)cfgMsg.Data.Length;
                 canMsg.Delay = (uint)cfgMsg.Delay;
+                canMsg.Timeout = 1000;
+                canMsg.Attempts = 5;
             }
             return true;
         }
@@ -191,13 +193,19 @@ namespace InfluxShared.FileObjects
             try
             {
                 string groupID = "";
+                ushort dynSize = 0;
+                uint dynIdentStart = modXml.Config.DynIdentStart;
+
                 //messages.Clear();
-                foreach (var xmlMsg in modXml.PollingItemList.Items.GroupBy(x => x.Ident).Select(group => group.First()).OrderBy(x => x.Order))
+                foreach (var xmlMsg in modXml.PollingItemList.Items.Where(item=>item.UDSServiceID ==0x23 || item.UDSServiceID == 0x22)
+                                .GroupBy(x => x.Ident).Select(group => group.First()).OrderBy(x => x.Order))
                 {
                     canMsg = new OutputMessage();
                     messages.Add(canMsg);
                     canMsg.Delay = (uint)xmlMsg.Delay;
                     canMsg.CanID = xmlMsg.TxIdent;
+                    if (canMsg.CanID > 0x7FF)
+                        canMsg.CanMsgType = DBCMessageType.Extended;
                     canMsg.IsChild = true;
                     if (groupID != $"CAN{modXml.Config?.CanBus}_{xmlMsg.TxIdent}")
                     {
@@ -212,13 +220,19 @@ namespace InfluxShared.FileObjects
                         canMsg.Can3 = true;
                     else
                         canMsg.Can0 = true;
-                    canMsg.Data = new byte[8] { 3, 0x22, (byte)(xmlMsg.Ident >> 8), (byte)xmlMsg.Ident, 0, 0, 0, 0 };
+                    if (xmlMsg.UDSServiceID == 0x23)
+                    {
+                        AddMode23Msg(modXml, canMsg, xmlMsg);
+                    }
+                    else if (xmlMsg.UDSServiceID == 0x22)
+                        canMsg.Data = new byte[8] { 3, 0x22, (byte)(xmlMsg.Ident >> 8), (byte)xmlMsg.Ident, 0, 0, 0, 0 };
                     canMsg.DLC = 8;// (byte)(xmlMsg.Data.Length);
                     canMsg.BRS = false;
                     canMsg.Linked = true;
                     canMsg.RxIdent = xmlMsg.RxIdent;
                     canMsg.ProtocolType = Protocol_Type.UDS;
-                }                
+                    canMsg.Timeout = 1000;
+                }
 
                 return true;
             }
@@ -226,6 +240,174 @@ namespace InfluxShared.FileObjects
             {
                 //LastError = $"Error parsing csv row {rowCounter} Error: {exc.Message}";
                 return false;
+            }
+        }
+
+        private static void AddMode23Msg(ModuleXml modXml, OutputMessage canMsg, PollingItem xmlMsg)
+        {
+            ushort size = (ushort)(xmlMsg.BitCount / 8);
+            byte addrDataSize = Convert.ToByte($"{modXml.Config.DataSize}{modXml.Config.AddressSize}", 16);
+            byte msgSize = (byte)(3 + modXml.Config.DataSize + modXml.Config.AddressSize);
+            if (msgSize < 8)
+                msgSize = 8;
+            canMsg.Data = new byte[msgSize];
+            canMsg.Data[0] = (byte)(canMsg.Data.Length - 1);
+            canMsg.Data[1] = 0x23;
+            canMsg.Data[2] = addrDataSize;
+            for (int i = 0; i < modXml.Config.AddressSize; i++)
+            {
+                canMsg.Data[i + 3] = (byte)(xmlMsg.Ident >> (8 * (modXml.Config.AddressSize - 1 - i)));
+            }
+            for (int i = 0; i < modXml.Config.DataSize; i++)
+            {
+                canMsg.Data[i + 3 + modXml.Config.AddressSize] = (byte)(size >> (8 * (modXml.Config.DataSize - 1 - i)));
+            }
+        }
+
+        static OutputMessage NewOutputUdsMsg(byte[] data, uint delay = 10, uint txId = 0x7E0, uint rxId = 0x7E8)
+        {
+            OutputMessage canMsg = new();
+            canMsg.Delay = delay;
+            canMsg.Timeout = 1000;
+            canMsg.CanID = txId;
+            canMsg.RxIdent = rxId;
+            canMsg.IsChild = true;
+            canMsg.Data = data;
+            return canMsg;
+        }
+
+        public static void LoadMode2AFromModuleXml(this List<OutputMessage> messages, ModuleXml modXml, List<OutputMessage> repeatMsgList)
+        {
+
+            OutputMessage canMsg;
+            bool has2AMsgs = false;
+            bool isFirstMsg = true;
+            ushort dynSize = 0;
+            byte addrDataSize = Convert.ToByte($"{modXml.Config.DataSize}{modXml.Config.AddressSize}", 16);
+            uint dynIdentStart = modXml.Config.DynIdentStart;
+            uint txIdent = 0x7E0;
+
+            foreach (var xmlMsg in modXml.PollingItemList.Items.Where(item => item.UDSServiceID == 0x2A)
+                                .GroupBy(x => x.Ident).Select(group => group.First()).OrderBy(x => x.Order))
+            {
+                has2AMsgs = true;
+                txIdent = xmlMsg.TxIdent;
+                ushort size = (ushort)(xmlMsg.BitCount / 8);
+                dynSize += size;
+                if (dynSize > 8 || isFirstMsg)
+                {
+                    if (dynSize > 8)
+                    {
+                        dynIdentStart++;
+                        dynSize = size;
+                    }                    
+                    if (isFirstMsg)
+                    {
+                        messages.Add(NewOutputUdsMsg(new byte[8] { 02, 0x2A, 0x4, 0, 0, 0, 0, 0 }));  //Stop mode 0x2A broadcasting
+                    }
+                    messages.Add(NewOutputUdsMsg(new byte[8] { 0x4, 0x2C, 3, (byte)(dynIdentStart >> 8), (byte)dynIdentStart, 0, 0, 0 }));  //Register Dynamic Ident 0xF200+                                   
+                    isFirstMsg = false;
+                }
+
+                messages.Add(NewOutputUdsMsg(new byte[8] { 0x10, 0x0A, 0x2C, 2, (byte)(dynIdentStart >> 8), (byte)dynIdentStart,
+                            addrDataSize, (byte)(xmlMsg.Ident >> (8 * (modXml.Config.AddressSize - 1))) }));  //Map addresses to Dynamic Ident 0xF200+
+                messages.Add(NewOutputUdsMsg(new byte[8] { 0x21, 0, 0, 0, 0, 0, 0, 0 }));
+                for (int i = 1; i < modXml.Config.AddressSize; i++) //skip the HI byte of the address since it was written in the previous message
+                {
+                    messages.Last().Data[i] = (byte)(xmlMsg.Ident >> (8 * (modXml.Config.AddressSize - 1 - i)));
+                }
+                for (int i = 0; i < modXml.Config.DataSize; i++)
+                {
+                    messages.Last().Data[i + modXml.Config.AddressSize] = (byte)(size >> (8 * (modXml.Config.DataSize - 1 - i)));  
+                }
+            }
+            if (!has2AMsgs)
+                return;
+            for (uint i = modXml.Config.DynIdentStart; i <= dynIdentStart; i++)
+            {
+                messages.Add(NewOutputUdsMsg(new byte[8] { 03, 0x2A, 0x2, (byte)i, 0, 0, 0, 0 })); //Start broadcasting dynamic ident
+            }
+            repeatMsgList.Add(NewOutputUdsMsg(new byte[8] { 2, 0x3E, 0, 0, 0, 0, 0, 0 }, 2000)); //Add Tester Present message
+
+        }
+
+
+        public static void LoadXcpFromModuleXml(this List<OutputMessage> messages, ModuleXml modXml)
+        {
+            uint txIdent = modXml.XcpCfg.Cro;
+            uint rxIdent = modXml.XcpCfg.Dto; 
+
+            OutputMessage NewOutputXcpMsg(byte[] data)
+            {
+                return NewOutputUdsMsg(data, txId: txIdent, rxId: rxIdent);
+            }
+
+            if (modXml.XcpCfg.Daqs.Count > 0)
+            {
+                txIdent = modXml.XcpCfg.Cro;
+                rxIdent = modXml.XcpCfg.Dto;
+                ushort NoOfDaqs = (ushort)(modXml.PollingItemList.Items.Where(x => x.Service == ServiceType.XCP).Max(x=>x.UDSServiceID) + 1);
+                var daqsWithItems = modXml.PollingItemList.Items.GroupBy(x => x.UDSServiceID).Select(x=>x.Key).ToList();
+
+                messages.Add(NewOutputXcpMsg([0xFF, 0, 0, 0, 0, 0, 0, 0])); //Connect
+                messages.Add(NewOutputXcpMsg([0xD6, 0, 0, 0, 0, 0, 0, 0])); //Free Daq    
+                messages.Add(NewOutputXcpMsg([0xD5, 0, (byte)NoOfDaqs, (byte)(NoOfDaqs >> 8), 0, 0, 0, 0])); //Alloc Daq    
+                
+                for (ushort i = 0; i < modXml.XcpCfg.Daqs.Count; i++)
+                {
+                    if (daqsWithItems.Contains((byte)i))
+                    {
+                        var items = modXml.PollingItemList.Items.Where(x => x.Service == ServiceType.XCP && x.UDSServiceID == i).ToList();
+                        messages.Add(NewOutputXcpMsg([0xD4, 0, (byte)i, (byte)(i >> 8), (byte)items.Count, 0, 0, 0])); //Alloc number of ODT for every DAQ
+                    }
+                }
+                for (ushort i = 0; i < modXml.XcpCfg.Daqs.Count; i++)
+                {
+                    if (daqsWithItems.Contains((byte)i))
+                    {
+                        var groupOdt = modXml.PollingItemList.Items.Where(x => x.Service == ServiceType.XCP && x.UDSServiceID == i).
+                            GroupBy(x => x.Mode).Select(group => new { Mode = group.Key, Count = group.Count() }).OrderBy(y=>y.Mode);
+                        byte odtCounter = 0;
+                        foreach (var odt in groupOdt)
+                        {
+                            messages.Add(NewOutputXcpMsg([0xD3, 0, (byte)i, (byte)(i >> 8), odtCounter, (byte)odt.Count, 0, 0])); //Alloc number of items (ODT_Entry) for every ODT
+                            odtCounter++;
+                        }
+                    }
+                }
+                for (ushort i = 0; i < modXml.XcpCfg.Daqs.Count; i++)
+                {
+                    if (daqsWithItems.Contains((byte)i))
+                    {
+                        for (byte odt_num = 0; odt_num < 1; odt_num++)
+                        {
+                            messages.Add(NewOutputXcpMsg([0xE2, 0, (byte)i, (byte)(i >> 8), odt_num, 0, 0, 0])); //Set Daq Pointer (SET_DAQ_PTR)    
+                            var items = modXml.PollingItemList.Items.Where(x => x.Service == ServiceType.XCP && x.UDSServiceID == i).OrderBy(x => x.Mode).ThenBy(x=>x.StartBit).ToList();
+                            for (int idx = 0; idx < items.Count; idx++)
+                            {
+                                uint address = items[idx].Ident;
+                                messages.Add(NewOutputXcpMsg([ 0xE1, 0xFF, (byte)(items[idx].BitCount / 8), 0,
+                                    (byte)address, (byte)(address >> 8), (byte)(address >> 16), (byte)(address >> 24) ])); //Alloc number of ODT for every DAQ
+
+                            }
+                        }
+                    }
+                }
+                for (ushort i = 0; i < modXml.XcpCfg.Daqs.Count; i++)
+                {
+                    if (daqsWithItems.Contains((byte)i))
+                    {
+                        messages.Add(NewOutputXcpMsg([0xE0, 0, (byte)i, (byte)(i >> 8), (byte)i, 0, 1, 0])); //Assign Event to the DAQ channels SET_DAQ_LIST_MODE
+                    }
+                }
+                for (ushort i = 0; i < modXml.XcpCfg.Daqs.Count; i++)
+                {
+                    if (daqsWithItems.Contains((byte)i))
+                    {
+                        messages.Add(NewOutputXcpMsg([0xDE, 02, (byte)i, (byte)(i >> 8), 0, 0, 0, 0])); //Start DAQ List
+                    }
+                }
+                messages.Add(NewOutputXcpMsg([0xDD, 01, 0, 0, 0, 0, 0, 0])); //START_STOP_SYNCH
             }
         }
 

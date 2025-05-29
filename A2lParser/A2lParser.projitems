@@ -1,0 +1,32 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <MSBuildAllProjects Condition="'$(MSBuildVersion)' == '' Or '$(MSBuildVersion)' &lt; '16.0'">$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
+    <HasSharedItems>true</HasSharedItems>
+    <SharedGUID>3e8a6419-abed-4f26-85c9-471e5c7eefad</SharedGUID>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration">
+    <Import_RootNamespace>A2lParserLib</Import_RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)A2lParser.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)CompuMethods\CompuMethod.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)CompuMethods\CompuTable.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)CompuMethods\RatFunc.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Enums.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ErrorLog.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Helpers.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Interfaces\IXcpDaq.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Interfaces\IXcpEvent.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Interfaces\IXcpOdt.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Interfaces\IXcpSettings.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Items\Characteristic.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Items\IA2lItem.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Items\Measurement.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Module.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Settings\XcpDaq.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Settings\XcpOdt.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Settings\XcpSettings.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Settings\XcpEvent.cs" />
+  </ItemGroup>
+</Project>

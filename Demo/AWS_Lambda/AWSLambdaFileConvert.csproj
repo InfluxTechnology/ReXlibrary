@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <LangVersion>latest</LangVersion>
     <TargetFramework>net8.0</TargetFramework>
@@ -37,4 +37,5 @@
   <Import Project="..\..\DbcParser\DbcParser.projitems" Label="Shared" />
   <Import Project="..\..\Cloud\Cloud.projitems" Label="Shared" />
   <Import Project="..\..\SharedTools\InfluxShared\InfluxShared.projitems" Label="Shared" />
+  <Import Project="..\..\A2lParser\A2lParser.projitems" Label="Shared" />
 </Project>

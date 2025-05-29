@@ -23,6 +23,10 @@ namespace RXD.Base
 
     internal class RXDataReader : IDisposable
     {
+        public static string dbgRecordsSuffix = ".records";
+        public static string dbgSectorsSuffix = ".sectors";
+        public static string dbgAwsSuffix = ".aws";
+
         public static bool CreateDebugFiles = false;
         public static AllowDebugInfo ExternalDebugChecker = null;
         internal string DebugOutput = null;
@@ -48,6 +52,8 @@ namespace RXD.Base
             new ModeFrameCollector(),
             ];
         internal Int64 TimeOffset;
+        internal BlockType LastReadRecBinType = BlockType.Unknown;
+        internal byte[] LastReadRecTimestamp;
 
         internal protected UInt32 DataSectorStart = 0;
         protected UInt64 SectorID = 0;
@@ -63,6 +69,8 @@ namespace RXD.Base
         {
             this.logic = logic;
             collection = bcollection;
+            LastReadRecBinType = BlockType.Unknown;
+            LastReadRecTimestamp = new byte[4];
 
             ParseBuffer = GetParseLogic();
             rxStream = bcollection.GetRWStream;
@@ -72,6 +80,13 @@ namespace RXD.Base
 
             CreateDebugFiles = collection.dataSource == DataOrigin.File && ExternalDebugChecker is not null && ExternalDebugChecker();
             DebugOutput = collection.rxdUri;
+
+            if (CreateDebugFiles)
+            {
+                File.Delete(Path.ChangeExtension(DebugOutput, dbgRecordsSuffix));
+                File.Delete(Path.ChangeExtension(DebugOutput, dbgSectorsSuffix));
+                File.Delete(Path.ChangeExtension(DebugOutput, dbgAwsSuffix));
+            }
 
             OutputDebugSectors();
             ReadSector = rxStream.Read;
@@ -116,6 +131,8 @@ namespace RXD.Base
             if (!CreateDebugFiles)
                 return;
 
+            string dbgSectorFileName = Path.ChangeExtension(DebugOutput, dbgSectorsSuffix);
+
             UInt64 sid = DataSectorStart;
             byte[] buffer = new byte[SectorSize];
             RecPreBuffer.DataRecord LastPB = new RecPreBuffer.DataRecord();
@@ -123,7 +140,7 @@ namespace RXD.Base
             UInt32 LastTimestamp = 0;
             UInt32 pboffset = 0;
             byte[] tmp;
-            using (FileStream dbg = new FileStream(Path.ChangeExtension(DebugOutput, ".sectors"), FileMode.Create, FileAccess.Write, FileShare.ReadWrite))
+            using (FileStream dbg = new FileStream(dbgSectorFileName, FileMode.Create, FileAccess.Write, FileShare.ReadWrite))
             using (FileStream fs = new FileStream(collection.rxdUri, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
             {
                 fs.Seek(DataSectorStart * SectorSize, SeekOrigin.Begin);
@@ -189,6 +206,19 @@ namespace RXD.Base
             }
         }
 
+        void FixGnssTimestamp(RecRaw rec)
+        {
+            if (rec.LinkedBin.BinType == BlockType.GNSSMessage)
+            {
+                if (LastReadRecBinType == BlockType.GNSSMessage)
+                    Array.Copy(LastReadRecTimestamp, 0, rec.Data, 0, 4);
+                else
+                    Array.Copy(rec.Data, 0, LastReadRecTimestamp, 0, 4);
+            }
+
+            LastReadRecBinType = rec.LinkedBin.BinType;
+        }
+
         ParseBufferLogic GetParseLogic()
         {
             switch (logic)
@@ -222,32 +252,37 @@ namespace RXD.Base
             GetBlockBounds(ref source, out IntPtr endptr);
             while ((long)source < (long)endptr)
             {
-                RecRaw rec = RecRaw.Read(ref source);
-
-                if (CreateDebugFiles)
+                //RecRaw rec = RecRaw.Read(ref source);
+                var records = RecRaw.Read(ref source);
+                foreach (var rec in records)
                 {
-                    if (rec.header.UID == 0xFFFF)
-                        dbg.Append(Encoding.ASCII.GetString(rec.VariableData));
-                    else
-                        sb.Append(rec.ToString());
+                    if (CreateDebugFiles)
+                    {
+                        if (rec.header.UID == 0xFFFF)
+                            dbg.Append(Encoding.ASCII.GetString(rec.VariableData));
+                        else
+                            sb.Append(rec.ToString());
+                    }
+
+                    if (rec.header.InfSize < 4)
+                        continue;
+
+                    if (!collection.TryGetValue(rec.header.UID, out rec.LinkedBin))
+                        continue;
+
+                    if (rec.LinkedBin.RecType == RecordType.Unknown)
+                        continue;
+
+                    FixGnssTimestamp(rec);
+
+                    rec.BusChannel = collection.DetectBusChannel(rec.header.UID);
+                    RecBase input = RecBase.Parse(rec);
+
+                    if (input is null)
+                        break;
+
+                    MessageCollection.Add(input);
                 }
-
-                if (rec.header.InfSize < 4)
-                    continue;
-
-                if (!collection.TryGetValue(rec.header.UID, out rec.LinkedBin))
-                    continue;
-
-                if (rec.LinkedBin.RecType == RecordType.Unknown)
-                    continue;
-
-                rec.BusChannel = collection.DetectBusChannel(rec.header.UID);
-                RecBase input = RecBase.Parse(rec);
-
-                if (input is null)
-                    break;
-
-                MessageCollection.Add(input);
             }
 
             CheckForMultiFrame();
@@ -255,10 +290,10 @@ namespace RXD.Base
             if (CreateDebugFiles)
             {
                 if (sb.Length > 0)
-                    using (var reclog = File.AppendText(Path.ChangeExtension(DebugOutput, ".records")))
+                    using (var reclog = File.AppendText(Path.ChangeExtension(DebugOutput, dbgRecordsSuffix)))
                         reclog.Write(sb.ToString());
                 if (dbg.Length > 0)
-                    using (var reclog = File.AppendText(Path.ChangeExtension(DebugOutput, ".aws")))
+                    using (var reclog = File.AppendText(Path.ChangeExtension(DebugOutput, dbgAwsSuffix)))
                         reclog.Write(dbg.ToString());
             }
         }
@@ -268,21 +303,25 @@ namespace RXD.Base
             GetBlockBounds(ref source, out IntPtr endptr);
             while ((long)source < (long)endptr)
             {
-                RecRaw rec = RecRaw.Read(ref source);
-                if (collection.TryGetValue(rec.header.UID, out BinBase bin))
-                {
-                    var timestamp = BitConverter.ToUInt32(rec.Data, 0);
-                    if (bin.DataFound && timestamp < bin.LastTimestamp)
-                        bin.TimeOverlap = true;
-
-                    bin.LastTimestamp = timestamp;
-
-                    if (!bin.DataFound)
+                //RecRaw rec = RecRaw.Read(ref source);
+                var records = RecRaw.Read(ref source);
+                foreach (var rec in records)
+                    if (collection.TryGetValue(rec.header.UID, out rec.LinkedBin))
                     {
-                        bin.FirstTimestamp = bin.LastTimestamp;
-                        bin.DataFound = true;
+                        FixGnssTimestamp(rec);
+
+                        var timestamp = rec.ExtractRawTimestamp;
+                        if (rec.LinkedBin.DataFound && timestamp < rec.LinkedBin.LastTimestamp)
+                            rec.LinkedBin.TimeOverlap = true;
+
+                        rec.LinkedBin.LastTimestamp = timestamp;
+
+                        if (!rec.LinkedBin.DataFound)
+                        {
+                            rec.LinkedBin.FirstTimestamp = rec.LinkedBin.LastTimestamp;
+                            rec.LinkedBin.DataFound = true;
+                        }
                     }
-                }
             }
         }
 
@@ -308,21 +347,26 @@ namespace RXD.Base
             GetBlockBounds(ref source, out IntPtr endptr);
             while ((long)source < (long)endptr)
             {
-                RecRaw rec = RecRaw.Read(ref source);
+                //RecRaw rec = RecRaw.Read(ref source);
+                var records = RecRaw.Read(ref source);
+                foreach (var rec in records)
+                {
+                    if (!collection.TryGetValue(rec.header.UID, out rec.LinkedBin))
+                        continue;
 
-                if (!collection.TryGetValue(rec.header.UID, out rec.LinkedBin))
-                    continue;
+                    if (rec.LinkedBin.RecType != RecordType.PreBuffer)
+                        continue;
 
-                if (rec.LinkedBin.RecType != RecordType.PreBuffer)
-                    continue;
+                    FixGnssTimestamp(rec);
 
-                //rec.BusChannel = collection.DetectBusChannel(rec.header.UID);
-                RecBase input = RecBase.Parse(rec);
+                    //rec.BusChannel = collection.DetectBusChannel(rec.header.UID);
+                    RecBase input = RecBase.Parse(rec);
 
-                if (input is null)
-                    break;
+                    if (input is null)
+                        break;
 
-                MessageCollection.Add(input);
+                    MessageCollection.Add(input);
+                }
             }
         }
 
@@ -365,7 +409,7 @@ namespace RXD.Base
 
                 return true;
             }
-            catch (Exception)
+            catch (Exception e)
             {
                 return false;
             }
@@ -389,12 +433,17 @@ namespace RXD.Base
                 GetBlockBounds(ref source, out IntPtr endptr);
                 while ((long)source < (long)endptr)
                 {
-                    RecRaw rec = RecRaw.Read(ref source);
+                    //RecRaw rec = RecRaw.Read(ref source);
+                    var records = RecRaw.Read(ref source);
+                    foreach (var rec in records)
+                    {
+                        if (!collection.TryGetValue(rec.header.UID, out rec.LinkedBin))
+                            continue;
 
-                    if (!collection.TryGetValue(rec.header.UID, out rec.LinkedBin))
-                        continue;
+                        FixGnssTimestamp(rec);
 
-                    LastTime = Math.Max(LastTime, BitConverter.ToUInt32(rec.Data, 0));
+                        LastTime = Math.Max(LastTime, BitConverter.ToUInt32(rec.Data, 0));
+                    }
                 }
 
                 return LastTime;

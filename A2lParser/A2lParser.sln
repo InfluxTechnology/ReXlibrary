@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.9.34701.34
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{D954291E-2A0B-460D-934E-DC6B0785DB48}") = "A2lParser", "A2lParser.shproj", "{3E8A6419-ABED-4F26-85C9-471E5C7EEFAD}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestA2LParser", "..\..\TestA2LParser\TestA2LParser.csproj", "{17F0794C-F5F0-45A4-B1E7-C90292A6763B}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{17F0794C-F5F0-45A4-B1E7-C90292A6763B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{17F0794C-F5F0-45A4-B1E7-C90292A6763B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{17F0794C-F5F0-45A4-B1E7-C90292A6763B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{17F0794C-F5F0-45A4-B1E7-C90292A6763B}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {343A45DA-4478-4881-BF4E-B3F96B040126}
+	EndGlobalSection
+	GlobalSection(SharedMSBuildProjectFiles) = preSolution
+		A2lParser.projitems*{17f0794c-f5f0-45a4-b1e7-c90292a6763b}*SharedItemsImports = 4
+		A2lParser.projitems*{3e8a6419-abed-4f26-85c9-471e5c7eefad}*SharedItemsImports = 13
+	EndGlobalSection
+EndGlobal

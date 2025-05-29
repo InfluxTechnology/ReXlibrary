@@ -4,7 +4,9 @@
  * ------------------------------------
  */
 
+using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Xml;
 
@@ -317,14 +319,16 @@ namespace InfluxShared.FileObjects
             DbcItem sig = new DbcItem();
             sig.Ident = msg.CANID;
             sig.Name = IdentName(node);
-            sig.Type = DBCSignalType.ModeDependent; // !
+            sig.Type = DBCSignalType.ModeDependent;
             sig.Comment = strContent(dop, "DESC");
 
             sig.StartBit = (ushort)(BytePos * 8 + uintContent(node, "BIT-POSITION"));
 
             XmlNode dct = XmlNode(dop, "DIAG-CODED-TYPE");
             sig.BitCount = (ushort)uintContent(dct, "BIT-LENGTH");
-            sig.ByteOrder = AttrByName(dct, "IS-HIGHLOW-BYTE-ORDER1") == "true" ? DBCByteOrder.Motorola : DBCByteOrder.Intel;
+            sig.ByteOrder = AttrByName(dct, "IS-HIGHLOW-BYTE-ORDER") == "false" ? DBCByteOrder.Intel : DBCByteOrder.Motorola;
+            if (sig.ByteOrder == DBCByteOrder.Motorola)
+                sig.StartBit += 7;
             sig.ValueType = ValueType(XmlNode(dop, "PHYSICAL-TYPE"));
 
             ExtractCompuMethod(XmlNode(dop, "COMPU-METHOD"), sig);
@@ -516,14 +520,15 @@ namespace InfluxShared.FileObjects
 
                 string lsb = strContent(child, "LEAST_SIG_BIT");
                 string msb = strContent(child, "MOST_SIG_BIT");
-                sig.ByteOrder = (lsb.Contains("-") || msb.Contains("-")) ? DBCByteOrder.Motorola : DBCByteOrder.Intel;  // надявам се да е вярно               
+                string byte_order = strContent(child, "BYTE_ORDER");
+                sig.ByteOrder = byte_order.Contains("LEAST-SIGNIFICANT-BYTE-FIRST") ? DBCByteOrder.Intel : DBCByteOrder.Motorola;
 
                 sig.StartBit = (ushort)uintContent(child, "LEAST_SIG_BIT");
-                if (sig.ByteOrder == DBCByteOrder.Intel)
-                    sig.BitCount = (ushort)(uintContent(child, "MOST_SIG_BIT") - sig.StartBit + 1);
-                else
-                    sig.BitCount = (ushort)(sig.StartBit - uintContent(child, "MOST_SIG_BIT") + 1);
+                sig.BitCount = (ushort)(Math.Abs(uintContent(child, "MOST_SIG_BIT") - sig.StartBit) + 1);
 
+                if (sig.ByteOrder == DBCByteOrder.Motorola)
+                    sig.StartBit = (ushort)((msg.DLC - ((sig.BitCount + sig.StartBit + 7) >> 3)) * 8 + 7 - (sig.StartBit & 7u));
+                    //sig.StartBit = (ushort)(msg.DLC * 8 - sig.StartBit - sig.BitCount + 7);
                 ExtractDataDefinition(child, sig);
 
                 if (sig.Conversion.Type == ConversionType.None)

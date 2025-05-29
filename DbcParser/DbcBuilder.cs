@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Linq;
+using System.Xml.Linq;
 
 namespace DbcParserLib
 {
@@ -33,12 +34,10 @@ namespace DbcParserLib
                 {
                     foreach (KeyValuePair<string, string> attrtypes in AttrDefaultParser.AttrTypes)
                     {
-
                         if (attrtypes.Key.Equals("VFrameFormat"))
                         {
                             if (m_messages[ID].AttrValues["VFrameFormat"] == null)
                             {
-
                                 switch (attrtypes.Value)
                                 {
                                     case "StandardCAN": m_messages[ID].Type = DBCMessageType.Standard; break;
@@ -52,7 +51,6 @@ namespace DbcParserLib
                                     case "reserved": m_messages[ID].Type = DBCMessageType.reserved; break;
                                     default: throw new Exception($"VFrameFormat Not Recognized:{attrtypes.Value}");
                                 }
-
                             }
                             else
                             {
@@ -69,10 +67,8 @@ namespace DbcParserLib
                         }
                         else if (attrtypes.Key.Equals("CANFD_BRS"))
                         {
-
                             if (m_messages[ID].AttrValues["CANFD_BRS"] == null)
                             {
-
                                 m_messages[ID].AttrValues["CANFD_BRS"] = attrtypes.Value.ToString();
                                 if (attrtypes.Value == "1")
                                     m_messages[ID].BRS = true;
@@ -251,10 +247,31 @@ namespace DbcParserLib
             }
         }
 
+        public void ApplySignalTableKeyPrecision(Signal sig, int precision)
+        {
+            if (sig.TableNumeric is null || precision == 0)
+                return;
+
+            SortedDictionary<double, double> tbl = new();
+            foreach (var row in sig.TableNumeric)
+                tbl.Add(row.Key * Math.Pow(10, precision), row.Value);
+            sig.TableNumeric = tbl;
+        }
+
         public Dbc Build()
         {
+            string DefaultPrecision = GetDBCAttribute("TableKeyPrecision")?.Default ?? "";
+
             foreach (var message in m_messages)
             {
+                foreach (var sig in m_signals[message.Key].Values)
+                {
+                    var prec = sig.AttrValues["TableKeyPrecision"] ?? DefaultPrecision;
+                    if (prec != "")
+                        if (int.TryParse(prec, out int keyprec))
+                            ApplySignalTableKeyPrecision(sig, keyprec);
+                }
+
                 message.Value.Signals.Clear();
                 message.Value.Signals.AddRange(m_signals[message.Key].Values);
                 message.Value.ID &= 0x1fffffff;

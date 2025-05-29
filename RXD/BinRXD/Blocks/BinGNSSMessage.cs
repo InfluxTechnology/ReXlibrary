@@ -1,4 +1,5 @@
 ﻿using InfluxShared.FileObjects;
+using InfluxShared.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
@@ -49,6 +50,7 @@ namespace RXD.Blocks
         {
             InterfaceUID,
             Type,
+            InputUID
         }
 
         #region Do not touch these
@@ -150,6 +152,11 @@ namespace RXD.Blocks
                 data.AddProperty(BinProp.Type, typeof(TypeGNSS));
 
                 AddInput(BinProp.InterfaceUID.ToString());
+            });
+            Versions[2] = new Action(() =>
+            {
+                Versions[1].DynamicInvoke();
+                data.AddProperty(BinProp.InputUID, typeof(UInt16));
             });
         }
     }

@@ -1,4 +1,5 @@
 ﻿using MDF4xx.Frames;
+using RXD.Base;
 using RXD.Objects;
 using SharedObjects;
 using System;
@@ -39,6 +40,8 @@ namespace RXD.DataRecords
         UDS,
         UDS22,
         UDS23,
+        UDS2A,
+        UDS2C,
     }
 
     internal class RecCanTrace : RecBase

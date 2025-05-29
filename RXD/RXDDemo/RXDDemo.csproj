@@ -40,8 +40,8 @@
     <Reference Include="Apache.Arrow, Version=11.0.0.0, Culture=neutral, PublicKeyToken=204f54e5a45c07df, processorArchitecture=MSIL">
       <HintPath>..\..\..\InfluxLoggerApp\packages\Apache.Arrow.11.0.0\lib\netstandard2.0\Apache.Arrow.dll</HintPath>
     </Reference>
-    <Reference Include="DotNetZip, Version=1.13.8.0, Culture=neutral, PublicKeyToken=6583c7c814667745, processorArchitecture=MSIL">
-      <HintPath>..\..\..\InfluxLoggerApp\packages\DotNetZip.1.13.8\lib\net40\DotNetZip.dll</HintPath>
+    <Reference Include="DotNetZip, Version=1.16.0.0, Culture=neutral, PublicKeyToken=6583c7c814667745, processorArchitecture=MSIL">
+      <HintPath>..\..\..\InfluxLoggerApp\packages\DotNetZip.1.16.0\lib\net40\DotNetZip.dll</HintPath>
     </Reference>
     <Reference Include="IronCompress, Version=1.0.0.0, Culture=neutral, PublicKeyToken=d380b3dee6d01926, processorArchitecture=MSIL">
       <HintPath>..\..\..\InfluxLoggerApp\packages\IronCompress.1.5.2\lib\netstandard2.0\IronCompress.dll</HintPath>
@@ -160,5 +160,6 @@
   <Import Project="..\..\SharedTools\InfluxShared\InfluxShared.projitems" Label="Shared" />
   <Import Project="..\..\MDF4xx\MDF4xx\MDF4xx.projitems" Label="Shared" />
   <Import Project="..\BinRXD\BinRXD.projitems" Label="Shared" />
+  <Import Project="..\..\A2lParser\A2lParser.projitems" Label="Shared" />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

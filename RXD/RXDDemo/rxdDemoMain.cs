@@ -31,6 +31,8 @@ namespace RXDDemo
                 listBox1.Items.Add(rxd.ConfigMobile);
             if (rxd.ConfigS3 is not null)
                 listBox1.Items.Add(rxd.ConfigS3);
+            if (rxd.ConfigWiFi is not null)
+                listBox1.Items.Add(rxd.ConfigWiFi);
             foreach (KeyValuePair<Int64, BinBase> bin in rxd)
                 listBox1.Items.Add(bin.Value);
         }
@@ -84,6 +86,8 @@ namespace RXDDemo
                     listBox1.Items.Add(rxd.ConfigMobile);
                 if (rxd.ConfigS3 is not null)
                     listBox1.Items.Add(rxd.ConfigS3);
+                if (rxd.ConfigWiFi is not null)
+                    listBox1.Items.Add(rxd.ConfigWiFi);
                 foreach (KeyValuePair<Int64, BinBase> bin in rxd)
                     listBox1.Items.Add(bin.Value);
             }

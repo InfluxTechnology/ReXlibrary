@@ -24,10 +24,12 @@ namespace RXD.Base
         private UInt16 FUID = 0;  // Auto Increment ID
         public UInt16 NewUID { get { return ++FUID; } }
 
-        public Dictionary<PackType, byte> UDSMap = new() {
+        public static Dictionary<PackType, byte> UDSMap = new() {
             {PackType.NotPacked, 0},
             {PackType.UDS22, 0x22},
             {PackType.UDS23, 0x23},
+            {PackType.UDS2A, 0x2A},
+            {PackType.UDS2C, 0x2C},
         };
 
         public BlockCollection()
@@ -68,10 +70,12 @@ namespace RXD.Base
 
             if (ContainOverlap)
             {
+                // Get bins with data only after timestamp overlap event, and set them to start with overlap time offset
                 var BinsAfterOverlap = this.Where(b => b.Value.DataFound && !b.Value.TimeOverlap && b.Value.LastTimestamp < FirstTimestamp);
                 foreach (var b in BinsAfterOverlap)
                     b.Value.AddOverlap = true;
 
+                // Get bins with data only before timestamp overlap event, and update first timestamp of file including them
                 UInt32 LastTimestamp = (UInt32?)bins.Max(b => b.Value.LastTimestamp) ?? 0;
                 var BinsBeforeOverlap = this.Where(b => b.Value.DataFound && !b.Value.TimeOverlap && b.Value.FirstTimestamp > LastTimestamp);
                 if (BinsBeforeOverlap.Count() > 0)

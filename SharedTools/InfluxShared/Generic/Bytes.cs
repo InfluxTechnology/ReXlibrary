@@ -15,6 +15,9 @@ namespace InfluxShared.Generic
 
         public static byte[] ObjectToBytes(object obj)
         {
+            if (obj.GetType() == typeof(byte[]))
+                return (byte[])obj;
+
             byte[] buffer = new byte[Marshal.SizeOf(obj)];
             GCHandle h = GCHandle.Alloc(buffer, GCHandleType.Pinned);
             IntPtr p = h.AddrOfPinnedObject();
@@ -51,6 +54,8 @@ namespace InfluxShared.Generic
                 Buffer.BlockCopy(ObjectToBytes(Convert.ChangeType(v, elType)), 0, buffer, ++idx * elSize, elSize);
             return buffer;
         }
+
+        public static byte[] BoolArrayToBytes(object obj) => Array.ConvertAll((bool[])obj, b => b ? (byte)1 : (byte)0);
 
         public static byte[] ArrayToBytes(object obj)
         {

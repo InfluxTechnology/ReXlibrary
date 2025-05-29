@@ -21,6 +21,8 @@ Project("{D954291E-2A0B-460D-934E-DC6B0785DB48}") = "DbcParser", "DbcParser\DbcP
 EndProject
 Project("{D954291E-2A0B-460D-934E-DC6B0785DB48}") = "Cloud", "Cloud\Cloud.shproj", "{11DD53D9-3BC3-470F-AD9F-089970CD943B}"
 EndProject
+Project("{D954291E-2A0B-460D-934E-DC6B0785DB48}") = "A2lParser", "A2lParser\A2lParser.shproj", "{3E8A6419-ABED-4F26-85C9-471E5C7EEFAD}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -49,6 +51,7 @@ Global
 	GlobalSection(SharedMSBuildProjectFiles) = preSolution
 		Cloud\Cloud.projitems*{11dd53d9-3bc3-470f-ad9f-089970cd943b}*SharedItemsImports = 13
 		RXD\BinRXD\BinRXD.projitems*{30d6e0c6-5e82-4ffc-b4ca-c4d671e26c53}*SharedItemsImports = 13
+		A2lParser\A2lParser.projitems*{3e8a6419-abed-4f26-85c9-471e5c7eefad}*SharedItemsImports = 13
 		MDF4xx\MDF4xx\MDF4xx.projitems*{432f235e-6775-4749-a2ef-827359bab8e5}*SharedItemsImports = 13
 		SharedTools\InfluxShared\InfluxShared.projitems*{5d304db9-4a8e-453f-89e1-34a74f91e0ef}*SharedItemsImports = 13
 		Cloud\Cloud.projitems*{9f7f3a81-d134-4efe-b854-3b12f6bf55c3}*SharedItemsImports = 5
@@ -57,6 +60,7 @@ Global
 		MDF4xx\MDF4xx\MDF4xx.projitems*{9f7f3a81-d134-4efe-b854-3b12f6bf55c3}*SharedItemsImports = 5
 		RXD\BinRXD\BinRXD.projitems*{9f7f3a81-d134-4efe-b854-3b12f6bf55c3}*SharedItemsImports = 5
 		SharedTools\InfluxShared\InfluxShared.projitems*{9f7f3a81-d134-4efe-b854-3b12f6bf55c3}*SharedItemsImports = 5
+		A2lParser\A2lParser.projitems*{a7c032d2-27cc-4525-a094-fd7d6418ba31}*SharedItemsImports = 5
 		Cloud\Cloud.projitems*{a7c032d2-27cc-4525-a094-fd7d6418ba31}*SharedItemsImports = 5
 		DbcParser\DbcParser.projitems*{a7c032d2-27cc-4525-a094-fd7d6418ba31}*SharedItemsImports = 5
 		Matlab\MatlabFile\MatlabFile.projitems*{a7c032d2-27cc-4525-a094-fd7d6418ba31}*SharedItemsImports = 5

@@ -80,6 +80,9 @@ namespace RXD.Base.FrameCollectors
                 FrameCount = msg.VariableData[3]
             };
 
+            if (data.FrameCount * 7 + 1 < data.MessageSize)
+                return null;
+
             FrameCollection.Add(data.Source, data);
 
             return data;
@@ -102,14 +105,17 @@ namespace RXD.Base.FrameCollectors
             if (J1939.isPgnConnectMessage(msg))
             {
                 MultiFrameData data = AddOrGetJ1939(msg);
-                if (data.Count > 0)
+                if (data is not null)
                 {
-                    //MessageBox.Show("Previous buffer untriggered");
-                }
-                data.Clear();
-                data.Add(msg);
+                    if (data.Count > 0)
+                    {
+                        //MessageBox.Show("Previous buffer untriggered");
+                    }
+                    data.Clear();
+                    data.Add(msg);
 
-                return true;
+                    return true;
+                }
             }
             else if (J1939.isPgnDataTransferMessage(msg))
             {

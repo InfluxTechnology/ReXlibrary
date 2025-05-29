@@ -12,8 +12,8 @@ namespace DbcParserLib.Parsers
         private const string SignalLineStarter = "SG_";
         private const string SignedSymbol = "-";
         private static readonly string[] m_commaSpaceSeparator = new string[] { Helpers.Space, Helpers.Comma };
-        private const string SignalRegex = @"\s*SG_\s+([A-Za-z0-9()_]+)\s*([Mm\d]*)\s*:\s*(\d+)\|(\d+)@([01])([+-])\s+\(([\d\+\-eE.]+),([\d\+\-eE.]+)\)\s+\[([\d\+\-eE.]+)\|([\d\+\-eE.]+)\]\s+""(.*)""\s+([\w\s,]+)";
-
+        //private const string SignalRegex = @"\s*SG_\s+([A-Za-z0-9()_]+)\s*([Mm\d]*)\s*:\s*(\d+)\|(\d+)@([01])([+-])\s+\(([\d\+\-eE.]+),([\d\+\-eE.]+)\)\s+\[([\d\+\-eE.]+)\|([\d\+\-eE.]+)\]\s+""(.*)""\s+([\w\s,]+)";
+        private const string SignalRegex = @"\s*SG_\s+([A-Za-z0-9()_]+)\s*([Mm\d]*)\s*:\s*(\d+)\s*\|\s*(\d+)@([01])([+-])\s*\(([\d\+\-eE.]+),([\d\+\-eE.]+)\)\s+\[([\d\+\-eE.]+)\|([\d\+\-eE.]+)\]\s*""(.*)""\s+([\w\s,]+)";
         private const string SignalValTypeStarter = "SIG_VALTYPE_";
         private const string SignalValTypeRegex = @"\s*SIG_VALTYPE_\s+(\d+)\s*([A-Za-z0-9()_]+)\s*:\s*(\d+)";
 
@@ -64,25 +64,26 @@ namespace DbcParserLib.Parsers
             if (match.Success == false)
                 return;
 
+            var ci = new CultureInfo("en-US", false);
 
             var sig = new Signal
             {
                 Multiplexing = match.Groups[2].Value,
                 Name = match.Groups[1].Value,
-                StartBit = ushort.Parse(match.Groups[3].Value, CultureInfo.InvariantCulture),
-                //Length = byte.Parse(match.Groups[4].Value, CultureInfo.InvariantCulture),
-                ByteOrder = byte.Parse(match.Groups[5].Value, CultureInfo.InvariantCulture),   // 0 = MSB (Motorola), 1 = LSB (Intel)
+                StartBit = ushort.Parse(match.Groups[3].Value, ci),
+                //Length = byte.Parse(match.Groups[4].Value, ci),
+                ByteOrder = byte.Parse(match.Groups[5].Value, ci),   // 0 = MSB (Motorola), 1 = LSB (Intel)
                 ValueType = match.Groups[6].Value == SignedSymbol ? DBCValueType.Signed : DBCValueType.Unsigned,
-                Factor = double.Parse(match.Groups[7].Value, CultureInfo.InvariantCulture),
-                Offset = double.Parse(match.Groups[8].Value, CultureInfo.InvariantCulture),
-                Minimum = double.Parse(match.Groups[9].Value, CultureInfo.InvariantCulture),
-                Maximum = double.Parse(match.Groups[10].Value, CultureInfo.InvariantCulture),
+                Factor = double.Parse(match.Groups[7].Value, ci),
+                Offset = double.Parse(match.Groups[8].Value, ci),
+                Minimum = double.Parse(match.Groups[9].Value, ci),
+                Maximum = double.Parse(match.Groups[10].Value, ci),
                 Unit = match.Groups[11].Value,
                 Receiver = match.Groups[12].Value.Split(m_commaSpaceSeparator, StringSplitOptions.RemoveEmptyEntries)  // can be multiple receivers splitted by ","
             };
 
 
-            if (byte.TryParse(match.Groups[4].Value, NumberStyles.None, CultureInfo.InvariantCulture, out byte length) && length >= 0 && length <= 255)
+            if (byte.TryParse(match.Groups[4].Value, NumberStyles.None, ci, out byte length) && length >= 0 && length <= 255)
                 sig.Length = length;
             else
                 sig.Length = 8;

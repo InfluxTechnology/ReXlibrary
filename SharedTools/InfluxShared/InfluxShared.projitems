@@ -9,10 +9,7 @@
     <Import_RootNamespace>InfluxShared</Import_RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="$(MSBuildThisFileDirectory)FileObjects\A2L.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)FileObjects\A2LItem.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)FileObjects\A2lOdt.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)FileObjects\A2LSettings.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)FileObjects\ApacheParquet.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)FileObjects\ARXML.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)FileObjects\BasicItemInfo.cs" />

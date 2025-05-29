@@ -38,6 +38,9 @@ namespace RXD.Base
             if (record.header.DLC != 8)
                 return false;
 
+            if (record.VariableData[0] == 0)
+                return false;
+
             return true;
         }
 

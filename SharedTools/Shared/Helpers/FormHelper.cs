@@ -47,6 +47,15 @@ namespace Influx.Shared.Helpers
                                       .Where(c => c.GetType() == typeof(T)));
         }
 
+        public static IEnumerable<object> GetAllControls(this Control control, string TypeName)
+        {
+            var controls = control.Controls.Cast<Control>();
+
+            return controls.SelectMany(ctrl => ctrl.GetAllControls(TypeName)
+                                      .Concat(controls)
+                                      .Where(c => c.GetType().ToString().Contains(TypeName)));
+        }
+
         public static void PerformSafely(this Control target, Action action)
         {
             if (target.InvokeRequired)

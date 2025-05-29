@@ -58,6 +58,8 @@ namespace DbcParserLib.Influx
         public static DBC FromDBC(Dbc dbc)
         {
             DBC influxDBC = new DBC();
+            influxDBC.FileType = dbc.FileType;
+
             foreach (var msg in dbc.Messages)
             {
                 if (msg.ID == 0xC0000000)
@@ -129,6 +131,14 @@ namespace DbcParserLib.Influx
                     sigI.Ident = msg.ID;
                     sigI.Parent = msgI;
 
+
+                    if (msgI.Name == "Mode_0x22")
+                        sigI.UDS = 0x22;
+                    else if (msgI.Name == "Mode_0x23")
+                        sigI.UDS = 0x23;
+                    else
+                        sigI.UDS = 0;
+
                     msgI.Items.Add(sigI);
                 }
 
@@ -159,11 +169,12 @@ namespace DbcParserLib.Influx
         }
 
         static NumberFormatInfo nfi = new NumberFormatInfo() { NumberDecimalSeparator = ".", NumberGroupSeparator = "" };
+        static string DefaultNode = "Influx_Node";
 
         static void WriteNodes(this DBC dbc, StreamWriter sw)
         {
             sw.WriteLine("");
-            string line = "BU_: Vector__XXX";
+            string line = "BU_: " + (dbc.NodeNames.Count == 0 ? DefaultNode : dbc.NodeNames[0]);
             sw.WriteLine(line);
         }
 
@@ -180,16 +191,16 @@ namespace DbcParserLib.Influx
             {
                 sw.WriteLine(
                     Environment.NewLine +
-                    $"BO_ {msg.CANID} {msg.Name.DbcNameClean()}: {msg.DLC} {msg.Transmitter ?? "Vector__XXX"}"
+                    $"BO_ {msg.CANID} {msg.Name.DbcNameClean()}: {msg.DLC} {msg.Transmitter ?? (dbc.NodeNames.Count == 0 ? DefaultNode : dbc.NodeNames[0])}"
                 );
 
                 foreach (DbcItem sig in msg.Items)
                     sw.WriteLine(
-                        $"\tSG_ {sig.Name.DbcNameClean()} {sig.ModeStr()} : {sig.StartBit} | {sig.BitCount}@" +
+                        $"  SG_ {sig.Name.DbcNameClean()} {sig.ModeStr()} : {sig.StartBit}|{sig.BitCount}@" +
                         (sig.ByteOrder == DBCByteOrder.Intel ? "1" : "0") +
                         (sig.ValueType == DBCValueType.Unsigned ? "+" : "-") +
                         $"({sig.Factor.ToString(nfi)},{sig.Offset.ToString(nfi)}) [{sig.MinValue.ToString(nfi)}|{sig.MaxValue.ToString(nfi)}]" +
-                        $"\"{sig.Units}\" Vector__XXX"
+                        $" \"{sig.Units}\" {(dbc.NodeNames.Count == 0 ? DefaultNode : dbc.NodeNames[0])}"
                     );
             }
         }
@@ -239,6 +250,32 @@ namespace DbcParserLib.Influx
                         sw.WriteLine(
                             $"SIG_VALTYPE_ {msg.CANID} {sig.Name.DbcNameClean()} : {(sig.ValueType == DBCValueType.IEEEFloat ? "1" : "2")};"
                         );
+        }
+
+        static public void SetType(this DBC dbc, DBCFileType FileType)
+        { 
+            dbc.FileType = FileType;
+            switch (FileType)
+            {
+                case DBCFileType.Generic:
+                    break;
+                case DBCFileType.CAN:
+                    break;
+                case DBCFileType.CANFD:
+                    break;
+                case DBCFileType.LIN:
+                    break;
+                case DBCFileType.J1939:
+                    break;
+                case DBCFileType.Ethernet:
+                    break;
+                case DBCFileType.FlexRay:
+                    break;
+                case DBCFileType.KanCan:
+                    break;
+                default:
+                    break;
+            }
         }
 
         static public void SaveDBCToFile(this DBC dbc, string FileName)

@@ -23,9 +23,9 @@ namespace RXD.Blocks
 
     internal enum FilterType : byte
     {
-        CLASSIC,
-        DUAL,
         RANGE,
+        DUAL,
+        CLASSIC,
     }
     #endregion
 
@@ -53,11 +53,11 @@ namespace RXD.Blocks
             PrescalerFD,
             UseBitTiming,
             FilterCount,
-            FilterID1,
-            FilterID2,
-            FilterAccept,
+            ID1,
+            ID2,
+            Accept,
             FilterType,
-            FilterExtended,
+            Extended,
         }
 
         #region Do not touch these
@@ -106,11 +106,16 @@ namespace RXD.Blocks
             {
                 Versions[4].DynamicInvoke();
                 data.AddProperty(BinProp.FilterCount, typeof(byte));
-                data.AddProperty(BinProp.FilterID1, typeof(UInt32[]), BinProp.FilterCount);
-                data.AddProperty(BinProp.FilterID2, typeof(UInt32[]), BinProp.FilterCount);
-                data.AddProperty(BinProp.FilterAccept, typeof(bool[]), BinProp.FilterCount); // bool
+                data.AddProperty(BinProp.ID1, typeof(UInt32[]), BinProp.FilterCount);
+                data.AddProperty(BinProp.ID2, typeof(UInt32[]), BinProp.FilterCount);
+                data.AddProperty(BinProp.Accept, typeof(bool[]), BinProp.FilterCount); // bool
                 data.AddProperty(BinProp.FilterType, typeof(FilterType[]), BinProp.FilterCount);
-                //data.AddProperty(BinProp.FilterExtended, typeof(bool)); // bool
+                data.AddProperty(BinProp.Extended, typeof(bool[]), BinProp.FilterCount); // bool
+                data.Property(BinProp.ID1).XmlSequenceGroup = "HW_FILTER";
+                data.Property(BinProp.ID2).XmlSequenceGroup = "HW_FILTER";
+                data.Property(BinProp.Accept).XmlSequenceGroup = "HW_FILTER";
+                data.Property(BinProp.FilterType).XmlSequenceGroup = "HW_FILTER";
+                data.Property(BinProp.Extended).XmlSequenceGroup = "HW_FILTER";
             });
             AddInput("");
             AddOutput("");

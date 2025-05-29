@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
@@ -19,6 +20,8 @@ namespace DbcParserLib.Parsers
 
         public bool TryParse(string line, IDbcBuilder builder)
         {
+            var ci = new CultureInfo("en-US", false);
+
             if (line.TrimStart().StartsWith(ValueTableLineStarter) == false)
                 return false;
 
@@ -69,7 +72,7 @@ namespace DbcParserLib.Parsers
                     sg.TableVerbal = new SortedDictionary<double, string>();
 
                     for (int i = 0; i < match.Groups[2].Captures.Count; i++)
-                        if (double.TryParse(match.Groups[2].Captures[i].Value, out double InVal))
+                        if (double.TryParse(match.Groups[2].Captures[i].Value, NumberStyles.None, ci, out double InVal))
                             sg.TableVerbal.Add(InVal, match.Groups[4].Captures[i].Value);
                         else
                         {
@@ -80,7 +83,7 @@ namespace DbcParserLib.Parsers
                     // Try to make numeric table
                     sg.TableNumeric = new SortedDictionary<double, double>();
                     foreach (var pair in sg.TableVerbal)
-                        if (double.TryParse(pair.Value, out double OutVal))
+                        if (double.TryParse(pair.Value, NumberStyles.Float, ci, out double OutVal))
                             sg.TableNumeric.Add(pair.Key, OutVal);
                         else
                         {
@@ -93,7 +96,6 @@ namespace DbcParserLib.Parsers
             }
 
             return false;
-
         }
     }
 }

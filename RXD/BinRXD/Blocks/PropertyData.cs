@@ -125,8 +125,13 @@ namespace RXD.Blocks
             if (PropType == typeof(string))
                 return Encoding.ASCII.GetBytes(Value);
             else if (PropType.IsArray)
-                return PropType.GetElementType().IsEnum ? Bytes.EnumArrayToBytes(Data) : Bytes.ArrayToBytes(Data);
-            else if (PropType == typeof(IPAddress)) 
+                if (PropType.GetElementType().IsEnum)
+                    return Bytes.EnumArrayToBytes(Data);
+                else if (PropType.GetElementType() == typeof(bool))
+                    return Bytes.BoolArrayToBytes(Data);
+                else
+                    return Bytes.ArrayToBytes(Data);
+            else if (PropType == typeof(IPAddress))
                 return Value.GetAddressBytes();
             else
             {
