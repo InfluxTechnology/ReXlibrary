@@ -375,3 +375,6 @@ dir_to_ignore/TCComm
 /RXD/BinRXD/IMG_20200305_114632.jpg
 /RXD/BinRXD/schema.jpg
 /WinFormsApp2
+/GcsFileConverter/GcsFileConverter.csproj
+/Demo
+/GcsFileConverter
