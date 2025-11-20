@@ -2,10 +2,8 @@
 using DbcParserLib;
 using DbcParserLib.Influx;
 using Influx.Shared.Helpers;
-using InfluxDB.Client.Api.Domain;
 using InfluxShared.FileObjects;
 using MDF4xx.IO;
-using Minio.DataModel;
 using RXD.Base;
 
 namespace Cloud

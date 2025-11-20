@@ -33,6 +33,28 @@ namespace A2lParserLib
             FORM                //FORMULA WITH OPERATORS AND FUNCTIONS
         }
 
+        public enum XcpTimestamp : byte
+        {
+            NO_TIMESTAMP = 0,
+            SIZE_BYTE = 1,
+            SIZE_WORD = 2,
+            SIZE_DWORD = 4,
+        }
+
+        public enum XcpTimestampResolution : byte
+        {
+            UNIT_1NS,
+            UNIT_10NS,
+            UNIT_100NS,
+            UNIT_1US,
+            UNIT_10US,
+            UNIT_100US,
+            UNIT_1MS,
+            UNIT_10MS,
+            UNIT_100MS,
+            UNIT_1S
+        }
+
         public enum DaqType : byte { Static, Dynamic}
 
 

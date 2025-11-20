@@ -66,7 +66,25 @@ namespace RXD.DataRecords
         {
             var frames = base.ToTraceRow(TimestampPrecision);
 
-            if (data.Timestamp > 0)
+            if (header.InfSize == 4 && header.DLC == 1)
+            {
+                TraceEvent tevent = new TraceEvent()
+                {
+                    //TraceType = RecordType.PreBuffer,
+                    RawTimestamp = data.Timestamp,
+                    FloatTimestamp = (double)data.Timestamp * TimestampPrecision * 0.000001,
+                    NotExportable = NotExportable,
+                    EventTriggerName = LinkedBin.Name,
+                    Value = VariableData[0]
+                };
+
+                // Copy variable data
+                //Buffer.BlockCopy(VariableData, 0, trace._Data, 0, header.DLC);
+
+                frames.Add(tevent);
+
+            }
+            /*else if (data.Timestamp > 0)
             {
                 TracePreBuffer trace = new TracePreBuffer()
                 {
@@ -76,13 +94,14 @@ namespace RXD.DataRecords
                     NotExportable = NotExportable,
                     //DLC = header.DLC,
                     //_Data = new byte[header.DLC]
+                    strData = LinkedBin.Name
                 };
 
                 // Copy variable data
                 //Buffer.BlockCopy(VariableData, 0, trace._Data, 0, header.DLC);
 
                 frames.Add(trace);
-            }
+            }*/
 
             return frames;
         }

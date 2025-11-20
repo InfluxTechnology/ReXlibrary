@@ -209,6 +209,14 @@ namespace InfluxShared.FileObjects
         public ushort OdtSize { get; set; }
         [XmlElement("ODT_ENTRY_SIZE")]
         public ushort OdtEntrySize { get; set; }
+        [XmlElement("IS_EXTENDED")]
+        public bool IsExtended { get; set; } = false;
+        [XmlElement("IS_CANFD")]
+        public bool IsCanFd { get; set; } = false;
+        [XmlElement("TIMESTAMP")]
+        public Enums.XcpTimestamp Timestamp { get; set; }
+        [XmlElement("TIMESTAMP_RESOLUTION")]
+        public Enums.XcpTimestampResolution TimestampResolution { get; set; }
         [XmlIgnore]
         public List<XcpDaq> Daqs { get => _XcpDaqList; set => SetDaqList(value); }      
         [XmlElement("DAQ_LIST")]
@@ -285,6 +293,8 @@ namespace InfluxShared.FileObjects
         public byte TimeCycle { get; set; } //Event channel time cycle
         [XmlElement("TIMEUNIT")]
         public byte TimeUnit { get; set; } //Event channel time unit
+        [XmlIgnore]
+        public uint Ident { get; set; }
     }
 
     public class XcpDaqXml : IXcpDaq
@@ -306,7 +316,7 @@ namespace InfluxShared.FileObjects
         [XmlElement("MAX_ODT_ENTRIES")]
         public byte MaxOdtEntries { get; set; }
         [XmlElement("EVENT_CHANNEL")]
-        public byte EventChannel { get; set; }
+        public byte EventChannel { get; set; }        
         [XmlElement("EVENT_FIXED")]
         public bool EventFixed { get; set; }
         [XmlIgnore]
@@ -486,6 +496,8 @@ namespace InfluxShared.FileObjects
         public byte UDSServiceID { get => UDS; set => UDS = value; }  //If service is Xcp used for Daq index
         [XmlIgnore]
         public string SamplingStr { get; set; }
+        [XmlElement("CHANNEL_NAME")]
+        public string ChannelName { get; set; }
         public PollingItem() { }
 
         public PollingItem(ICanSignal msg) => msg.CopyProperties(this);

@@ -235,7 +235,10 @@ namespace RXD.Base
         {
             UInt16 blocksize = (UInt16)Marshal.ReadInt16(source);
             source += Marshal.SizeOf(blocksize);
-            eobPtr = source + blocksize;
+            if (blocksize > SectorSize - Marshal.SizeOf(blocksize)) // prevent invalid block parsing
+                eobPtr = source;
+            else
+                eobPtr = source + blocksize;
         }
 
         void ParseBufferData(IntPtr source)
@@ -250,6 +253,8 @@ namespace RXD.Base
             }
 
             GetBlockBounds(ref source, out IntPtr endptr);
+            List<RecBase> temprecs = new List<RecBase>();
+            bool blockerror = false;
             while ((long)source < (long)endptr)
             {
                 //RecRaw rec = RecRaw.Read(ref source);
@@ -265,7 +270,10 @@ namespace RXD.Base
                     }
 
                     if (rec.header.InfSize < 4)
-                        continue;
+                    {
+                        blockerror = true;
+                        break;
+                    }
 
                     if (!collection.TryGetValue(rec.header.UID, out rec.LinkedBin))
                         continue;
@@ -279,13 +287,22 @@ namespace RXD.Base
                     RecBase input = RecBase.Parse(rec);
 
                     if (input is null)
+                    {
+                        blockerror = true;
                         break;
+                    }
 
-                    MessageCollection.Add(input);
+                    temprecs.Add(input);
                 }
+                if (blockerror)
+                    break;
             }
 
-            CheckForMultiFrame();
+            if (!blockerror)
+            {
+                MessageCollection.AddRange(temprecs);
+                CheckForMultiFrame();
+            }
 
             if (CreateDebugFiles)
             {
@@ -308,6 +325,10 @@ namespace RXD.Base
                 foreach (var rec in records)
                     if (collection.TryGetValue(rec.header.UID, out rec.LinkedBin))
                     {
+                        if (rec.LinkedBin.BinType == BlockType.Trigger)
+                            if (rec.header.InfSize != 4 || rec.header.DLC != 1)
+                                continue;
+
                         FixGnssTimestamp(rec);
 
                         var timestamp = rec.ExtractRawTimestamp;
@@ -389,7 +410,6 @@ namespace RXD.Base
             try
             {
                 // Data block
-                //while (fsRXD.FastRead<byte>(rxBlock, 0, 512) > 0)
                 if (ReadSector(rxBlock, 0, SectorSize) != SectorSize)
                     return false;
 

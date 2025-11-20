@@ -339,72 +339,110 @@ namespace InfluxShared.FileObjects
 
             OutputMessage NewOutputXcpMsg(byte[] data)
             {
-                return NewOutputUdsMsg(data, txId: txIdent, rxId: rxIdent);
+                var msg = NewOutputUdsMsg(data, txId: txIdent, rxId: rxIdent, delay : 1);
+                if (modXml.XcpCfg.IsExtended)
+                    msg.CanMsgType = modXml.XcpCfg.IsCanFd ? DBCMessageType.CanFDExtended : DBCMessageType.Extended;
+                else
+                    msg.CanMsgType = modXml.XcpCfg.IsCanFd ? DBCMessageType.CanFDStandard : DBCMessageType.Standard;
+                if (modXml.XcpCfg.IsCanFd)
+                    msg.BRS = true;
+                return msg;
             }
 
             if (modXml.XcpCfg.Daqs.Count > 0)
             {
                 txIdent = modXml.XcpCfg.Cro;
                 rxIdent = modXml.XcpCfg.Dto;
-                ushort NoOfDaqs = (ushort)(modXml.PollingItemList.Items.Where(x => x.Service == ServiceType.XCP).Max(x=>x.UDSServiceID) + 1);
-                var daqsWithItems = modXml.PollingItemList.Items.GroupBy(x => x.UDSServiceID).Select(x=>x.Key).ToList();
+                var daqsWithItems = modXml.PollingItemList.Items.Where(x => x.Service == ServiceType.XCP).GroupBy(x => x.UDSServiceID).Select(x=>x.Key).ToList();
 
                 messages.Add(NewOutputXcpMsg([0xFF, 0, 0, 0, 0, 0, 0, 0])); //Connect
                 messages.Add(NewOutputXcpMsg([0xD6, 0, 0, 0, 0, 0, 0, 0])); //Free Daq    
-                messages.Add(NewOutputXcpMsg([0xD5, 0, (byte)NoOfDaqs, (byte)(NoOfDaqs >> 8), 0, 0, 0, 0])); //Alloc Daq    
-                
-                for (ushort i = 0; i < modXml.XcpCfg.Daqs.Count; i++)
+                messages.Add(NewOutputXcpMsg([0xD5, 0, (byte)daqsWithItems.Count(), (byte)(daqsWithItems.Count() >> 8), 0, 0, 0, 0])); //Alloc Daq    
+
+                /*for (ushort i = 0; i < modXml.XcpCfg.Daqs.Count; i++)
                 {
                     if (daqsWithItems.Contains((byte)i))
                     {
                         var items = modXml.PollingItemList.Items.Where(x => x.Service == ServiceType.XCP && x.UDSServiceID == i).ToList();
-                        messages.Add(NewOutputXcpMsg([0xD4, 0, (byte)i, (byte)(i >> 8), (byte)items.Count, 0, 0, 0])); //Alloc number of ODT for every DAQ
+                        messages.Add(NewOutputXcpMsg([0xD4, 0, (byte)i, (byte)(i >> 8), (byte)daqsWithItems.Count, 0, 0, 0])); //Alloc number of ODT for every DAQ
+                    }
+                }*/
+                ushort daqIdx = 0;
+                for (ushort i = 0; i < modXml.XcpCfg.Daqs.Count; i++)
+                {
+                    if (daqsWithItems.Contains((byte)i))
+                    {
+                        var groupOdt = modXml.PollingItemList.Items.Where(x => x.Service == ServiceType.XCP && x.UDSServiceID == i).
+                            GroupBy(x => x.Mode).Select(group => new { Mode = group.Key, Count = group.Count() }).OrderBy(y => y.Mode);
+                        if (modXml.XcpCfg.DaqType == A2lParserLib.Enums.DaqType.Static)  //If daqlist is dynamic then daq lists must be sequential
+                            daqIdx = i;
+                        messages.Add(NewOutputXcpMsg([0xD4, 0, (byte)daqIdx, (byte)(daqIdx >> 8), (byte)groupOdt.Count(), 0, 0, 0])); //Alloc number of ODT for every DAQ                        
+                        daqIdx++;
                     }
                 }
+                daqIdx = 0;
                 for (ushort i = 0; i < modXml.XcpCfg.Daqs.Count; i++)
                 {
                     if (daqsWithItems.Contains((byte)i))
                     {
                         var groupOdt = modXml.PollingItemList.Items.Where(x => x.Service == ServiceType.XCP && x.UDSServiceID == i).
                             GroupBy(x => x.Mode).Select(group => new { Mode = group.Key, Count = group.Count() }).OrderBy(y=>y.Mode);
+                        if (modXml.XcpCfg.DaqType == A2lParserLib.Enums.DaqType.Static)  //If daqlist is dynamic then daq lists must be sequential
+                            daqIdx = i;
                         byte odtCounter = 0;
                         foreach (var odt in groupOdt)
                         {
-                            messages.Add(NewOutputXcpMsg([0xD3, 0, (byte)i, (byte)(i >> 8), odtCounter, (byte)odt.Count, 0, 0])); //Alloc number of items (ODT_Entry) for every ODT
+                            messages.Add(NewOutputXcpMsg([0xD3, 0, (byte)daqIdx, (byte)(daqIdx >> 8), odtCounter, (byte)odt.Count, 0, 0])); //Alloc number of items (ODT_Entry) for every ODT
                             odtCounter++;
                         }
+                        daqIdx++;
                     }
                 }
+                daqIdx = 0;  //reset counter
                 for (ushort i = 0; i < modXml.XcpCfg.Daqs.Count; i++)
                 {
                     if (daqsWithItems.Contains((byte)i))
                     {
-                        for (byte odt_num = 0; odt_num < 1; odt_num++)
-                        {
-                            messages.Add(NewOutputXcpMsg([0xE2, 0, (byte)i, (byte)(i >> 8), odt_num, 0, 0, 0])); //Set Daq Pointer (SET_DAQ_PTR)    
+                        int odtNum = 0;
+                        if (modXml.XcpCfg.DaqType == A2lParserLib.Enums.DaqType.Static)  //If daqlist is dynamic then daq lists must be sequential
+                            daqIdx = i;
+                        int lastMode = -1;
                             var items = modXml.PollingItemList.Items.Where(x => x.Service == ServiceType.XCP && x.UDSServiceID == i).OrderBy(x => x.Mode).ThenBy(x=>x.StartBit).ToList();
-                            for (int idx = 0; idx < items.Count; idx++)
+                        for (int idx = 0; idx < items.Count; idx++)
+                        {
+                            if (lastMode != (int)items[idx].Mode)
                             {
-                                uint address = items[idx].Ident;
-                                messages.Add(NewOutputXcpMsg([ 0xE1, 0xFF, (byte)(items[idx].BitCount / 8), 0,
-                                    (byte)address, (byte)(address >> 8), (byte)(address >> 16), (byte)(address >> 24) ])); //Alloc number of ODT for every DAQ
-
+                                messages.Add(NewOutputXcpMsg([0xE2, 0, (byte)daqIdx, (byte)(daqIdx >> 8), (byte)odtNum, 0, 0, 0])); //Set Daq Pointer (SET_DAQ_PTR)    
+                                lastMode = (int)items[idx].Mode;
+                                odtNum++;
                             }
+                            uint address = items[idx].Ident;
+                            messages.Add(NewOutputXcpMsg([ 0xE1, 0xFF, (byte)(items[idx].BitCount / 8), 0,
+                                    (byte)address, (byte)(address >> 8), (byte)(address >> 16), (byte)(address >> 24) ])); //Alloc number of ODT for every DAQ
                         }
+                        daqIdx++;
                     }
                 }
+                daqIdx = 0;
                 for (ushort i = 0; i < modXml.XcpCfg.Daqs.Count; i++)
                 {
                     if (daqsWithItems.Contains((byte)i))
                     {
-                        messages.Add(NewOutputXcpMsg([0xE0, 0, (byte)i, (byte)(i >> 8), (byte)i, 0, 1, 0])); //Assign Event to the DAQ channels SET_DAQ_LIST_MODE
+                        if (modXml.XcpCfg.DaqType == A2lParserLib.Enums.DaqType.Static)  //If daqlist is dynamic then daq lists must be sequential
+                            daqIdx = i;
+                        messages.Add(NewOutputXcpMsg([0xE0, 0, (byte)daqIdx, (byte)(daqIdx >> 8), (byte)i, 0, 1, 0])); //Assign Event to the DAQ channels SET_DAQ_LIST_MODE
+                        daqIdx++;
                     }
                 }
+                daqIdx = 0;
                 for (ushort i = 0; i < modXml.XcpCfg.Daqs.Count; i++)
                 {
                     if (daqsWithItems.Contains((byte)i))
                     {
-                        messages.Add(NewOutputXcpMsg([0xDE, 02, (byte)i, (byte)(i >> 8), 0, 0, 0, 0])); //Start DAQ List
+                        if (modXml.XcpCfg.DaqType == A2lParserLib.Enums.DaqType.Static)  //If daqlist is dynamic then daq lists must be sequential
+                            daqIdx = i;
+                        messages.Add(NewOutputXcpMsg([0xDE, 02, (byte)daqIdx, (byte)(daqIdx >> 8), 0, 0, 0, 0])); //Start DAQ List
+                        daqIdx++;
                     }
                 }
                 messages.Add(NewOutputXcpMsg([0xDD, 01, 0, 0, 0, 0, 0, 0])); //START_STOP_SYNCH

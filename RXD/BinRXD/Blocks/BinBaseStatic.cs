@@ -49,13 +49,14 @@ namespace RXD.Blocks
         LINSignal = 39,
         Config_WiFi = 40,
         UDS = 41,
-
+        Relational_Operator = 42,
     };
 
     public enum RecordType : byte
     {
         Unknown,
         PreBuffer,
+        Event,
         CanTrace,
         CanError,
         LinTrace,
@@ -115,7 +116,7 @@ namespace RXD.Blocks
             { BlockType.TC, typeof(BinTC) },
             { BlockType.LINSignal, typeof(BinLinSignal) },
             { BlockType.UDS, typeof(BinUDS) },
-
+            { BlockType.Relational_Operator, typeof(BinRelationalOperator) },
         };
 
         /// <summary>
@@ -169,6 +170,8 @@ namespace RXD.Blocks
             { BlockType.TC, RecordType.Unknown },
             { BlockType.LINSignal, RecordType.MessageData },
             { BlockType.UDS, RecordType.Unknown },
+            { BlockType.Relational_Operator, RecordType.Unknown },
+
 
         };
 

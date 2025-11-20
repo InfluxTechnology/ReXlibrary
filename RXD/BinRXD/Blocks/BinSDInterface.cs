@@ -16,8 +16,12 @@ namespace RXD.Blocks
             MaxLogSize,
             MaxLogTime,
             LogFormat,
-            DisableUID,
-            EnableUID,
+            //EnableUID,
+            //DisableUID,
+            EnableUIDCount,
+            DisableUIDCount,
+            EnableUIDs,
+            DisableUIDs,
             InitialEnableState,
             IsEnableCreateNewLog,
             IsPostTimeFromEnableStart,
@@ -25,6 +29,8 @@ namespace RXD.Blocks
             PostLogTime,
             PreLogTime,
             PartitionID,
+            PostLogOnlyOnEnable,
+            PostLogContinuous
         }
 
         #region Do not touch these
@@ -54,15 +60,37 @@ namespace RXD.Blocks
                 data.AddProperty(BinProp.NumberOfLogs, typeof(UInt32));
                 data.AddProperty(BinProp.IsEnableCreateNewLog, typeof(bool));
                 data.AddProperty(BinProp.InitialEnableState, typeof(bool));
-                data.AddProperty(BinProp.EnableUID, typeof(UInt16));
-                data.AddProperty(BinProp.DisableUID, typeof(UInt16));
-                AddInput(BinProp.EnableUID.ToString());
-                AddInput(BinProp.DisableUID.ToString());
+                //data.AddProperty(BinProp.EnableUID, typeof(UInt16));
+                //data.AddProperty(BinProp.DisableUID, typeof(UInt16));
+                if (header.version > 5)
+                {
+                    data.AddProperty(BinProp.EnableUIDCount, typeof(byte));
+                    data.AddProperty(BinProp.DisableUIDCount, typeof(byte));
+                    data.AddProperty(BinProp.EnableUIDs, typeof(UInt16[]), BinProp.EnableUIDCount);
+                    data.Property(BinProp.EnableUIDs).XmlSequenceGroup = "EnableUID";
+                    data.Property(BinProp.EnableUIDs).Name = "EnableUID";
+                    data.AddProperty(BinProp.DisableUIDs, typeof(UInt16[]), BinProp.DisableUIDCount);
+                    data.Property(BinProp.DisableUIDs).XmlSequenceGroup = "DisableUID";
+                    data.Property(BinProp.DisableUIDs).Name = "DisableUID";
+                }
+                AddInput("EnableUID");
+                AddInput("DisableUID");
             });
             Versions[4] = new Action(() =>
             {
                 Versions[3].DynamicInvoke();
                 data.AddProperty(BinProp.PartitionID, typeof(byte));
+            });
+            Versions[5] = new Action(() =>
+            {
+                Versions[4].DynamicInvoke();
+                data.AddProperty(BinProp.PostLogOnlyOnEnable, typeof(bool));
+                data.AddProperty(BinProp.PostLogContinuous, typeof(bool));
+            });
+            Versions[6] = new Action(() =>
+            {
+                Versions[5].DynamicInvoke();
+                // added in Version 3 check to modify properties
             });
             AddInput("");
         }

@@ -15,7 +15,11 @@ namespace RXD.Blocks
         INCREMENT,
         DECREMENT,
         CHANGE,
-        SAME
+        SAME,
+        IN_RANGE,
+        NOT_IN_RANGE,
+        IN_RANGE_INCLUSIVE,
+        NOT_IN_RANGE_INCLUSIVE
     }
     #endregion
 

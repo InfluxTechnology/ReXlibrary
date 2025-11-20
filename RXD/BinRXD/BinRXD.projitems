@@ -33,6 +33,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)Blocks\BinLinInterface.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Blocks\BinLinMessage.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Blocks\BinLinSignal.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Blocks\BinRelationalOperator.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Blocks\BinTC.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Blocks\BinUDS.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)DataRecords\RecLinTrace.cs" />
@@ -80,6 +81,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)DataRecords\RecordCollection.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)DataRecords\RecRaw.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Helpers\DoubleDataHelper.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Helpers\TypeGnssExtension.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Objects\IItemGridDetails.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Objects\IRecordGridItem.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Objects\IRecordTimeAdapter.cs" />
@@ -87,6 +89,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)Objects\TraceCan.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Objects\TraceCanError.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Objects\TraceData.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Objects\TraceEvent.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Objects\TraceLin.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Objects\TracePreBuffer.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)SharedObjects\CanIdentifier.cs" />

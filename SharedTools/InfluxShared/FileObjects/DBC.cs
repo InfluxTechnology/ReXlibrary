@@ -1,4 +1,5 @@
-﻿using InfluxShared.Helpers;
+﻿using A2lParserLib.Interfaces;
+using InfluxShared.Helpers;
 using InfluxShared.Objects;
 using System;
 using System.Collections.Generic;
@@ -234,16 +235,16 @@ namespace InfluxShared.FileObjects
             return dbc;
         }
 
-        public static DBC CreateXCP(List<PollingItem> ItemList, uint CRO)
+        public static DBC CreateXCP(List<PollingItem> ItemList, IXcpSettings xcpconf)
         {
             DBC dbc = new DBC();
 
             dbc.Messages.Add(new DbcMessage()
             {
                 Name = "CRO",
-                CANID = CRO,
+                CANID = xcpconf.Cro,
                 DLC = 8,
-                MsgType = DBCMessageType.Standard
+                MsgType = xcpconf.IsCanFd ? (xcpconf.IsExtended ? DBCMessageType.CanFDExtended : DBCMessageType.CanFDStandard) : (xcpconf.IsExtended ? DBCMessageType.Extended : DBCMessageType.Standard),
             });
 
             var groupedItems = ItemList.Where(uds => uds.Service == ServiceType.XCP).GroupBy(i => i.UDSServiceID);
@@ -255,7 +256,7 @@ namespace InfluxShared.FileObjects
                     Name = "DTO ",
                     CANID = items[0].RxIdent,
                     DLC = 8,
-                    MsgType = DBCMessageType.Standard
+                    MsgType = xcpconf.IsCanFd ? (xcpconf.IsExtended ? DBCMessageType.CanFDExtended : DBCMessageType.CanFDStandard) : (xcpconf.IsExtended ? DBCMessageType.Extended : DBCMessageType.Standard)
                 };
 
                 dbc.Messages.Add(msg);
@@ -278,7 +279,7 @@ namespace InfluxShared.FileObjects
                     newSig.Type = DBCSignalType.ModeDependent;
                     newSig.UDS = 0;
                     newSig.Ident = sig.RxIdent;
-                    //newSig.StartBit += 8;
+                    newSig.StartBit += (ushort)(8 *(byte)xcpconf.Timestamp);
 
                     msg.Items.Add(newSig);
                     msg.DLC = (byte)Math.Max(msg.DLC, (newSig.StartBit + newSig.BitCount + 7) / 8);

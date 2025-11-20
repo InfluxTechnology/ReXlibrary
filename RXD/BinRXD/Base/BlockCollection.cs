@@ -128,6 +128,7 @@ namespace RXD.Base
                 switch (busMsg.Message.MsgType)
                 {
                     case DBCMessageType.Standard:
+                        //if (record.data.Flags.HasFlag(MessageFlags.EDL) && !record.data.Flags.HasFlag(MessageFlags.IDE))
                         if (!record.data.Flags.HasFlag(MessageFlags.EDL) && !record.data.Flags.HasFlag(MessageFlags.IDE))
                             return busMsg.Message.CANID == record.data.CanID;
                         else

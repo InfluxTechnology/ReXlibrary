@@ -39,11 +39,13 @@ namespace A2lParserLib.Settings
         public byte RateIndex { get => GetRateIndex(); set => SetRate(value); }
         public ushort OdtSize { get; set; } = 7;
         public ushort OdtEntrySize { get; set; }
+        public bool IsExtended { get; set; } = false;
+        public bool IsCanFd { get; set; } = false;
         public List<XcpDaq> Daqs { get; set; } = new();
         public List<XcpEvent> Events { get; set; } = new();
         public List<string> Cmmds { get; set; }
-
-
+        public XcpTimestamp Timestamp { get; set; }
+        public XcpTimestampResolution TimestampResolution { get; set; }
 
         public XcpSettings()
         {
@@ -103,6 +105,17 @@ namespace A2lParserLib.Settings
                 return (byte)Daqs[daqIdx].Odts.Where(x => x.FilledSize > 0).Count();
             }
             return 0;
+        }
+
+        internal void ResetOdtCount()
+        {
+            foreach (var daq in Daqs)
+            {
+                foreach (var odt in daq.Odts)
+                {
+                    odt.FilledSize = 0;
+                }
+            }            
         }
     }
 }

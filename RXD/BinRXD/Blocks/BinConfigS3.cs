@@ -12,7 +12,8 @@ namespace RXD.Blocks
         public enum S3_TYPE : byte
         {
             AWS,
-            COMPATIBLE
+            COMPATIBLE,
+            GCS
         }
 
         internal enum BinProp

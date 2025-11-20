@@ -370,6 +370,20 @@ namespace RXD.Base
 
                     foreach (var bin in this)
                     {
+                        if (bin.Value is BinSDInterface)
+                        {
+                            BinSDInterface binSDBus = bin.Value as BinSDInterface;
+                            if (binSDBus[BinSDInterface.BinProp.EnableUIDCount] == 0)
+                            {
+                                binSDBus[BinSDInterface.BinProp.EnableUIDCount] = 1;
+                                binSDBus[BinSDInterface.BinProp.EnableUIDs] = new UInt16[] { 0 };
+                            }
+                            if (binSDBus[BinSDInterface.BinProp.DisableUIDCount] == 0)
+                            {
+                                binSDBus[BinSDInterface.BinProp.DisableUIDCount] = 1;
+                                binSDBus[BinSDInterface.BinProp.DisableUIDs] = new UInt16[] { 0 };
+                            }
+                        }
                         if (bin.Value is BinCanMessage)
                         {
                             var msg = bin.Value as BinCanMessage;
@@ -837,6 +851,11 @@ namespace RXD.Base
                     return dd.WriteBinaryData((Timestamp - FileTimestamp) * TimestampCoeff, BinaryArray);
                 }
 
+                double WriteEvent(DoubleData dd, UInt64 Timestamp, byte[] BinaryArray)
+                {
+                    return dd.WriteBinaryData((Timestamp - FileTimestamp) * TimestampCoeff, BinaryArray);
+                }
+
                 settings.ProgressCallback?.Invoke(0);
                 settings.ProgressCallback?.Invoke("Extracting channel data...");
                 using (RXDataReader dr = new RXDataReader(this))
@@ -917,6 +936,13 @@ namespace RXD.Base
                                         WriteData(ddata.Object(rec.LinkedBin), (rec as RecMessage).data.Timestamp, rec.VariableData, ref LastTimestamp[rec.header.UID], ref TimeOffset[rec.header.UID]);
                                     }
                                     break;
+                                case RecordType.PreBuffer:
+                                    if (Exportable(rec.LinkedBin))
+                                    {
+                                        ddata.Object(rec.LinkedBin).BusChannel = $"Event {rec.LinkedBin.Name}";
+                                        WriteEvent(ddata.Object(rec.LinkedBin), (rec as RecPreBuffer).data.Timestamp, rec.VariableData);
+                                    }
+                                    break;
                                 default:
                                     break;
                             }
@@ -966,9 +992,12 @@ namespace RXD.Base
                         FileTimestamp = (InitialTimestamp == 0 ? FirstTimestamp : InitialTimestamp) * TimestampCoeff;
                     //FileTimestamp = (InitialTimestamp == 0 ? LowestTimestamp : Math.Min(LowestTimestamp, InitialTimestamp)) * TimestampCoeff;
 
-                    if ((tc[i] as IRecordTimeAdapter).FloatTimestamp < LastTimestamp)
-                        TimeOffset += (double)TimeRoll * TimePrecison * 0.000001;
-                    LastTimestamp = (tc[i] as IRecordTimeAdapter).FloatTimestamp;
+                    if (!(tc[i] is TraceEvent))
+                    {
+                        if ((tc[i] as IRecordTimeAdapter).FloatTimestamp < LastTimestamp)
+                            TimeOffset += (double)TimeRoll * TimePrecison * 0.000001;
+                        LastTimestamp = (tc[i] as IRecordTimeAdapter).FloatTimestamp;
+                    }
                     (tc[i] as IRecordTimeAdapter).FloatTimestamp -= FileTimestamp;
                     (tc[i] as IRecordTimeAdapter).FloatTimestamp += TimeOffset;
                 }
@@ -999,7 +1028,8 @@ namespace RXD.Base
                                 TraceAdd(rec.ToTraceRow(TimePrecison), ref LastTimestampLin, ref TimeOffsetLin);
                                 break;
                             case RecordType.PreBuffer:
-                                ProcessCallback?.Invoke(rec.ToTraceRow(TimePrecison));
+                                TraceAdd(rec.ToTraceRow(TimePrecison), ref LastTimestampCan, ref TimeOffsetCan);
+                                //ProcessCallback?.Invoke(rec.ToTraceRow(TimePrecison));
                                 break;
                             case RecordType.MessageData:
                                 break;
@@ -1103,8 +1133,15 @@ namespace RXD.Base
                     xblock.Add(xmlSeqListBlock);
                     for (int i = 0; i < seqlen; i++)
                     {
-                        XElement xmlSeqEl = xml.NewElement(seq.Key);
-                        xmlSeqListBlock.Add(xmlSeqEl);
+                        XElement xmlSeqEl;
+                        if (seq.Value.Count() > 1)
+                        {
+                            xmlSeqEl = xml.NewElement(seq.Key);
+                            xmlSeqListBlock.Add(xmlSeqEl);
+                        }
+                        else
+                            xmlSeqEl = xmlSeqListBlock;
+
                         foreach (var prop in seq.Value)
                             xmlSeqEl.Add(xml.NewElement(prop.Name, prop.Value[i]));
                     }
@@ -1253,7 +1290,7 @@ namespace RXD.Base
 
                         for (int i = 0; i < seqlen; i++)
                         {
-                            XElement propEl = XmlHandler.Child(arrElements.ElementAt(i), prop.Name);
+                            XElement propEl = seq.Value.Length == 1 ? arrElements.ElementAt(i) : XmlHandler.Child(arrElements.ElementAt(i), prop.Name);
                             if (propEl is not null)
                             {
                                 if (converter is SingleConverter && CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator == ",")

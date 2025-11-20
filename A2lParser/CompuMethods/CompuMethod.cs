@@ -11,6 +11,6 @@ namespace A2lParserLib.CompuMethods
         public string Description { get; set; }
         public CompuMethodType Type { get; set; }
         public string FormatString { get; set; }
-        public string Units { get; set; }
+        public string Units { get; set; } = "";
     }
 }

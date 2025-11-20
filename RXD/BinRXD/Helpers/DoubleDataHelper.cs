@@ -11,7 +11,17 @@ namespace RXD.Helpers
             DoubleData data = ddata.GetObject(bin.header.uniqueid);
             if (data is null)
             {
+                ProcessingRulesCollection prc = null;
+                if (bin.BinType == BlockType.Trigger)
+                {
+                    prc = ddata.ProcessingRules;
+                    ddata.ProcessingRules = null;
+                }
                 data = ddata.Add(bin.header.uniqueid, ChannelName: bin.GetName, ChannelUnits: bin.GetUnits);
+                if (bin.BinType == BlockType.Trigger)
+                {
+                    ddata.ProcessingRules = prc;
+                }
                 data.BinaryHelper = bin.GetDataDescriptor.CreateBinaryData();
                 // if (bin.BinType == BlockType.CANInterface)
                 //     data.BusChannel = (bin as BinCanInterface)[BinCanInterface.BinProp.PhysicalNumber];

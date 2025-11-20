@@ -62,6 +62,18 @@ namespace A2lParserLib
             return (T)Enum.Parse(typeof(T), value, ignoreCase);
         }
 
+        public static T ToEnumTry<T>(this string value, bool ignoreCase = true)
+        {
+            try
+            {
+                return (T)Enum.Parse(typeof(T), value, ignoreCase);
+            }
+            catch (Exception)
+            {
+                return default(T);
+            }
+        }
+
         public static T StrToIntDef<T>(string value, T defValue) where T : IConvertible
         {
             if (string.IsNullOrWhiteSpace(value))

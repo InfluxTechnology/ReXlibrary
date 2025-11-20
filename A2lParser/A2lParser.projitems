@@ -12,6 +12,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)A2lParser.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)CompuMethods\CompuMethod.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)CompuMethods\CompuTable.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)CompuMethods\Linear.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)CompuMethods\RatFunc.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Enums.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ErrorLog.cs" />

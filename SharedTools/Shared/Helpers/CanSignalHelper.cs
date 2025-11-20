@@ -28,13 +28,9 @@ namespace InfluxShared.Helpers
                 default: return DBCValueType.Unsigned;
             }
         }
-        public static DbcItem ToCanSignal(this IA2lItem a2lItem)
+
+        static void CopyProperties(DbcItem sig, IA2lItem a2lItem)
         {
-            DbcMessage dbcMessage = new DbcMessage();
-            dbcMessage.CANID = a2lItem.EcuAddress;
-            dbcMessage.DLC = 8;
-            dbcMessage.MsgType = DBCMessageType.Standard;
-            DbcItem sig = new DbcItem();
             sig.Name = a2lItem.Name;
             sig.Ident = a2lItem.EcuAddress;
             sig.Units = a2lItem.Units;
@@ -47,7 +43,6 @@ namespace InfluxShared.Helpers
             sig.Comment = a2lItem.Description;
             sig.Type = DBCSignalType.ModeDependent;
             sig.ValueType = a2lItem.DataType.DbcType();
-            sig.Parent = dbcMessage;
             if (a2lItem.CompuMethod is not null)
             {
                 if (a2lItem.CompuMethod is RatFunc)
@@ -67,8 +62,24 @@ namespace InfluxShared.Helpers
 
                 }
             }
+        }
+
+        public static DbcItem ToCanSignal(this IA2lItem a2lItem)
+        {
+            DbcMessage dbcMessage = new DbcMessage();
+            dbcMessage.CANID = a2lItem.EcuAddress;
+            dbcMessage.DLC = 8;
+            dbcMessage.MsgType = DBCMessageType.Standard;
+            DbcItem sig = new DbcItem();
+            sig.Parent = dbcMessage;
+            CopyProperties(sig, a2lItem);
             dbcMessage.Signals.Add(sig);
             return sig;
+        }
+
+        public static void UpdateCanSignal(this IA2lItem a2lItem, DbcItem signal)
+        {
+            CopyProperties(signal, a2lItem);
         }
     }
 }

@@ -12,6 +12,7 @@ namespace RXD.Objects
         public static int LimitStaticItemsCount = 10;
         public DateTime StartLogTime = DateTime.Now;
         internal List<IItemGridDetails> StaticValuesCollection = new();
+        internal readonly object _staticValuesLock = new();
 
         public TraceCollection()
         {
@@ -20,9 +21,12 @@ namespace RXD.Objects
 
         internal void InitStaticValues()
         {
-            StaticValuesCollection = this.OfType<IItemGridDetails>().GroupBy(i => i.strItemName).Select(x => x.Last()).ToList();
-            if (!ShowFullStaticItems)
-                StaticValuesCollection = StaticValuesCollection.Take(LimitStaticItemsCount).ToList();
+            lock (_staticValuesLock)
+            {
+                StaticValuesCollection = this.OfType<IItemGridDetails>().GroupBy(i => i.strItemName).Select(x => x.Last()).ToList();
+                if (!ShowFullStaticItems)
+                    StaticValuesCollection = StaticValuesCollection.Take(LimitStaticItemsCount).ToList();
+            }
         }
 
         internal void UpdateStaticValues(List<IItemGridDetails> newData)
@@ -40,19 +44,20 @@ namespace RXD.Objects
                 return -1;
             }
 
-            foreach (var data in newData)
-            {
-                var idx = FindItem(data.strItemName, out IItemGridDetails item);
-                if (item == null)
+            lock (_staticValuesLock)
+                foreach (var data in newData)
                 {
-                    if (!ShowFullStaticItems)
-                        if (StaticValuesCollection.Count >= LimitStaticItemsCount)
-                            return;
-                    StaticValuesCollection.Add(data);
+                    var idx = FindItem(data.strItemName, out IItemGridDetails item);
+                    if (item == null)
+                    {
+                        if (!ShowFullStaticItems)
+                            if (StaticValuesCollection.Count >= LimitStaticItemsCount)
+                                return;
+                        StaticValuesCollection.Add(data);
+                    }
+                    else
+                        StaticValuesCollection[idx] = data;
                 }
-                else
-                    StaticValuesCollection[idx] = data;
-            }
         }
 
         public string asASCII

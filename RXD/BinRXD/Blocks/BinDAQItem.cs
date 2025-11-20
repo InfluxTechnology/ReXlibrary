@@ -15,6 +15,13 @@ namespace RXD.Blocks
 
         #region Do not touch these
         public BinDAQItem(BinHeader hs = null) : base(hs) { }
+        public BinDAQItem(string name, ushort daqId, ushort inputUid, BinHeader hs = null) : base(hs) 
+        { 
+            this[BinProp.Name] = name;
+            this[BinProp.NameSize] = (byte)name.Length;
+            this[BinProp.DAQID] = daqId;
+            this[BinProp.InputUID] = inputUid;
+        }
 
         internal dynamic this[BinProp index]
         {

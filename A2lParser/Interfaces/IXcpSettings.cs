@@ -1,12 +1,13 @@
-﻿using System;
+﻿using A2lParserLib.Settings;
+using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Xml.Serialization;
 using static A2lParserLib.Enums;
-using A2lParserLib.Settings;
 
 namespace A2lParserLib.Interfaces
 {
-    internal interface IXcpSettings
+    public interface IXcpSettings
     {
         public string Name { get; set; }
         public uint Cro { get; set; }
@@ -22,6 +23,10 @@ namespace A2lParserLib.Interfaces
         public byte RateIndex { get; set; }
         public ushort OdtSize { get; set; }
         public ushort OdtEntrySize { get; set; }
+        public bool IsExtended { get; set; }
+        public bool IsCanFd { get; set; }
+        public XcpTimestamp Timestamp { get; set; }
+        public XcpTimestampResolution TimestampResolution { get; set; }
         public List<XcpDaq> Daqs { get; set; }
         public List<XcpEvent> Events { get; set; }
         public List<string> Cmmds { get; set; }

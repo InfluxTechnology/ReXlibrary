@@ -1,4 +1,5 @@
-﻿using System;
+﻿using InfluxShared.FileObjects;
+using System;
 
 namespace RXD.Blocks
 {
@@ -17,6 +18,11 @@ namespace RXD.Blocks
             OperatorCondition,
             NameSize,
             Name,
+            ConditionAcceptanceTime,
+            MaximumTriggeringCount,
+            TriggerCountResetUID,
+            ImpulseOnTrue,
+            InputUID3
         }
 
         #region Do not touch these
@@ -28,6 +34,9 @@ namespace RXD.Blocks
             set => data.SetProperty(index.ToString(), value);
         }
         #endregion
+
+        public override ChannelDescriptor GetDataDescriptor => new ChannelDescriptor()
+        { StartBit = 0, BitCount = 8, isIntel = true, HexType = typeof(UInt16), conversionType = ConversionType.None, Name = GetName, Units = GetUnits };
 
         internal override void SetupVersions()
         {
@@ -47,6 +56,20 @@ namespace RXD.Blocks
                 Versions[1].DynamicInvoke();
                 data.AddProperty(BinProp.NameSize, typeof(byte));
                 data.AddProperty(BinProp.Name, typeof(string), BinProp.NameSize);
+            });
+            Versions[3] = new Action(() =>
+            {
+                Versions[2].DynamicInvoke();
+                data.AddProperty(BinProp.ConditionAcceptanceTime, typeof(UInt32));
+                data.AddProperty(BinProp.MaximumTriggeringCount, typeof(UInt16));
+                data.AddProperty(BinProp.TriggerCountResetUID, typeof(UInt16));
+                data.AddProperty(BinProp.ImpulseOnTrue, typeof(bool));
+            });
+            Versions[4] = new Action(() =>
+            {
+                Versions[3].DynamicInvoke();
+                data.AddProperty(BinProp.InputUID3, typeof(UInt16));
+                AddInput(BinProp.InputUID3.ToString());
             });
         }
 

@@ -7,17 +7,21 @@ namespace RXD.Blocks
     {
         public static Dictionary<ConditionType, string> ConditionNames = new Dictionary<ConditionType, string>()
         {
-            { ConditionType.EQUAL, "Equal" },
-            { ConditionType.GREATER, "Greater" },
-            { ConditionType.LESS, "Less" },
-            { ConditionType.EQUAL_GREATER, "Equal or greater" },
-            { ConditionType.EQUAL_LESS, "Equal or less" },
-            { ConditionType.NOT_EQUAL, "Not equal" },
+            { ConditionType.EQUAL, "=" },
+            { ConditionType.GREATER, ">" },
+            { ConditionType.LESS, "<" },
+            { ConditionType.EQUAL_GREATER, ">=" },
+            { ConditionType.EQUAL_LESS, "<=" },
+            { ConditionType.NOT_EQUAL, "<>" },
             { ConditionType.NEW, "New" },
             { ConditionType.INCREMENT, "Increases" },
             { ConditionType.DECREMENT, "Decreases" },
             { ConditionType.CHANGE, "Changes" },
-            { ConditionType.SAME, "Changes" }
+            { ConditionType.SAME, "Changes" },
+            { ConditionType.IN_RANGE, "In range" },
+            { ConditionType.NOT_IN_RANGE, "Not in range" },
+            { ConditionType.IN_RANGE_INCLUSIVE, "In range (inclusive)" },
+            { ConditionType.NOT_IN_RANGE_INCLUSIVE, "Not in range (inclusive)" },
         };
 
         public static string ToConditionString(this ConditionType condition) => ConditionNames.FirstOrDefault(x => x.Key == condition).Value;

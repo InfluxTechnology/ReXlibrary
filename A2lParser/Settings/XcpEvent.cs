@@ -13,6 +13,6 @@ namespace A2lParserLib.Settings
         public int MaxDaqList { get; set; } = 10; //Maximum number of DAQ lists in this event channel
         public byte TimeCycle { get; set; } = 1; //Event channel time cycle
         public byte TimeUnit { get; set; } = 8; //Event channel time unit
-        
+        public uint Ident { get; set; }
     }
 }

@@ -103,7 +103,7 @@ namespace InfluxShared.FileObjects
 
         internal void FinishWrite(double EndTime)
         {
-            Transformer.PushEnd(EndTime);
+            Transformer?.PushEnd(EndTime);
         }
 
         public void WriteDataToStorage(double Timestamp, double DoubleValue)
