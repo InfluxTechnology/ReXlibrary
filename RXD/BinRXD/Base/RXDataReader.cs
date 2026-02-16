@@ -504,7 +504,7 @@ namespace RXD.Base
             get
             {
                 if (collection.PreBuffers.Count > 0)
-                    if (collection.PreBuffers[0].data.PreStartSector == DataSectorStart)
+                    if (collection.PreBuffers[0].data.PreStartSector == DataSectorStart + 1)
                         return collection.PreBuffers[0].data.InitialTimestamp;
 
                 return 0;
