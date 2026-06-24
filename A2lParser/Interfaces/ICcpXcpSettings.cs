@@ -1,13 +1,10 @@
 ﻿using A2lParserLib.Settings;
-using System;
 using System.Collections.Generic;
-using System.Text;
-using System.Xml.Serialization;
 using static A2lParserLib.Enums;
 
 namespace A2lParserLib.Interfaces
 {
-    public interface IXcpSettings
+    public interface ICcpXcpSettings
     {
         public string Name { get; set; }
         public uint Cro { get; set; }
@@ -30,5 +27,12 @@ namespace A2lParserLib.Interfaces
         public List<XcpDaq> Daqs { get; set; }
         public List<XcpEvent> Events { get; set; }
         public List<string> Cmmds { get; set; }
+        public bool IsXcp { get; set; } 
+        public bool SynchStartDaqChannels { get; set; }
+        public bool UseSeedKey { get; set; }
+        public string SeedFileCal { get; set; }
+        public string SeedFileDaq { get; set; }
+        public string SeedFilePgm { get; set; }
+        public string SeedFileStim { get; set; }
     }
 }

@@ -114,6 +114,7 @@ namespace RXD.Base
                 case BlockType.CANMessage: return DetectBusChannel(((BinCanMessage)bin)[BinCanMessage.BinProp.InterfaceUID]);
                 case BlockType.SDMessage: return DetectBusChannel(((BinSDMessage)bin)[BinSDMessage.BinProp.InterfaceUID]);
                 case BlockType.CANError: return DetectBusChannel(((BinCanError)bin)[BinCanError.BinProp.InterfaceID]);
+                case BlockType.LINInterface: return (bin as BinLinInterface)[BinLinInterface.BinProp.PhysicalNumber];
                 case BlockType.LINMessage: return DetectBusChannel(((BinLinMessage)bin)[BinLinMessage.BinProp.InterfaceID]);
                 default:
                     return 0;

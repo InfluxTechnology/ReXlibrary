@@ -8,7 +8,7 @@ using static A2lParserLib.Helpers;
 
 namespace A2lParserLib.Settings
 {
-    public class XcpSettings : IXcpSettings
+    public class XcpSettings : ICcpXcpSettings
     {
         public string Name { get; set; } = "";
         public uint Cro { get; set; }
@@ -33,7 +33,12 @@ namespace A2lParserLib.Settings
         public uint MaxEventChannels { get; set; }  //Total number of available event channels
         public byte MinDaq { get; set; } //Total number of predefined DAQ lists
         public DaqType DaqType { get; set; } //The flag indicates whether the DAQ lists that are not PREDEFINED shall be configured statically or dynamically
-        public ByteOrder ByteOrder { get; set; } 
+        private ByteOrder _byteOrder = ByteOrder.Intel;
+        public ByteOrder ByteOrder
+        {
+            get => _byteOrder;
+            set => _byteOrder = Enum.IsDefined(typeof(ByteOrder), value) ? value : ByteOrder.Intel;
+        }
         public uint Baudrate { get; set; }
         public uint BaudrateFD { get; set; }
         public byte RateIndex { get => GetRateIndex(); set => SetRate(value); }
@@ -46,6 +51,13 @@ namespace A2lParserLib.Settings
         public List<string> Cmmds { get; set; }
         public XcpTimestamp Timestamp { get; set; }
         public XcpTimestampResolution TimestampResolution { get; set; }
+        public bool IsXcp { get; set; } = false;
+        public bool SynchStartDaqChannels { get; set; } = false;
+        public bool UseSeedKey { get; set; } = false;
+        public string SeedFileCal { get; set; } = string.Empty;
+        public string SeedFileDaq { get; set; } = string.Empty;
+        public string SeedFilePgm { get; set; } = string.Empty;
+        public string SeedFileStim { get; set; } = string.Empty;
 
         public XcpSettings()
         {

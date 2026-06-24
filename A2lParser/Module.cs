@@ -14,7 +14,7 @@ namespace A2lParserLib
         public Dictionary<string, CompuMethod> CompuMethods { get; set; }
         public ErrorLog ErrorLog { get; set; } = new ErrorLog();
         public XcpSettings XcpSettings { get; set; }
-        public List<XcpSettings> XcpSettingsAll { get; set; }
+        public List<XcpSettings> XcpSettingsList { get; set; }
 
         public List<IA2lItem> AllItems { get => Measurements.Cast<IA2lItem>().Concat(Characteristics.Cast<IA2lItem>()).ToList(); }
         

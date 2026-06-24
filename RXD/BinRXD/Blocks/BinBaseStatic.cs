@@ -50,6 +50,11 @@ namespace RXD.Blocks
         Config_WiFi = 40,
         UDS = 41,
         Relational_Operator = 42,
+        Orientation = 43,
+        IMU_Configuration = 44,
+        XCP = 45,
+        SIGNAL_OPERATOR = 46,
+        SIGNAL_FILTER = 47,
     };
 
     public enum RecordType : byte
@@ -117,6 +122,11 @@ namespace RXD.Blocks
             { BlockType.LINSignal, typeof(BinLinSignal) },
             { BlockType.UDS, typeof(BinUDS) },
             { BlockType.Relational_Operator, typeof(BinRelationalOperator) },
+            { BlockType.Orientation, typeof(BinOrientation) },
+            { BlockType.IMU_Configuration, typeof(BinIMUConfiguration) },
+            { BlockType.XCP, typeof(BinXCP) },
+            { BlockType.SIGNAL_OPERATOR, typeof(BinSignal_Operator) },
+            { BlockType.SIGNAL_FILTER, typeof(BinSignal_Filter) },
         };
 
         /// <summary>
@@ -160,7 +170,7 @@ namespace RXD.Blocks
             { BlockType.Gyro, RecordType.MessageData },
             { BlockType.GNSSInterface, RecordType.Unknown },
             { BlockType.GNSSMessage, RecordType.MessageData },
-            { BlockType.INTERNAL_PARAMETER, RecordType.Unknown },
+            { BlockType.INTERNAL_PARAMETER, RecordType.MessageData },
             { BlockType.LED, RecordType.Unknown },
             { BlockType.LINInterface, RecordType.Unknown },
             { BlockType.LINMessage, RecordType.LinTrace },
@@ -171,7 +181,11 @@ namespace RXD.Blocks
             { BlockType.LINSignal, RecordType.MessageData },
             { BlockType.UDS, RecordType.Unknown },
             { BlockType.Relational_Operator, RecordType.Unknown },
-
+            { BlockType.Orientation, RecordType.MessageData },
+            { BlockType.IMU_Configuration, RecordType.Unknown },
+            { BlockType.XCP, RecordType.Unknown },
+            { BlockType.SIGNAL_OPERATOR, RecordType.MessageData },
+            { BlockType.SIGNAL_FILTER, RecordType.MessageData },
 
         };
 

@@ -1,6 +1,7 @@
 ﻿using RXD.DataRecords;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 
 namespace RXD.Objects
 {
@@ -10,7 +11,8 @@ namespace RXD.Objects
 
         public string strItemName => $"{strBusChannel} \\ {strCanID}";
 
-        public string strTimestamp => string.Format("{0:0.000000}", FloatTimestamp);
+        public string strTimestamp => string.Format(CultureInfo.InvariantCulture, "{0:0.000000}", FloatTimestamp);
+
 
         public byte BusChannel { get; set; }
 

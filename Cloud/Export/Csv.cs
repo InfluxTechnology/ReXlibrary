@@ -10,7 +10,7 @@ namespace Cloud.Export
 {
     internal static class CsvMultipartHelper
     {
-        internal static async Task<bool> ToCsv(IStorageProvider storage, string bucket, string destFile, BinRXD rxd, ExportDbcCollection signalsCollection, ILogProvider? log = null)
+        internal static async Task<bool> ToCsv(IStorageProvider storage, string bucket, string destFile, BinRXD rxd, ExportCollections signalsCollection, ILogProvider? log = null)
         {
             log?.Log($"Start CSV convert");
             ProcessingRulesCollection rules = null;
@@ -38,7 +38,7 @@ namespace Cloud.Export
             var exportCsv = new BinRXD.ExportSettings()
             {
                 StorageCache = StorageCacheType.Memory,
-                SignalsDatabase = new() { dbcCollection = signalsCollection },
+                SignalsDatabase = signalsCollection,
                 ProcessingRules = rules,
             };
             var ddcCsv = rxd.ToDoubleData(exportCsv);

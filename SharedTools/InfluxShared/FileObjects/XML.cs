@@ -103,7 +103,7 @@ namespace InfluxShared.FileObjects
                     uint ll = uintContent(child, "LOWER-LIMIT");
                     uint ul = uintContent(child, "UPPER-LIMIT");
                     for (uint i = ll; i <= ul; i++)
-                        sig.Conversion.TableVerbal.Pairs.Add(i, s);
+                        sig.Conversion.TableVerbal.Pairs[i] = s;
                 }
             }
         }
@@ -159,7 +159,12 @@ namespace InfluxShared.FileObjects
 
             foreach (XmlNode child in node.ChildNodes)
                 if (child.Name.ToUpper() == text.ToUpper())
-                    return uint.Parse(child.InnerText.Replace("-", string.Empty).ToString());
+                {
+                    string s = child.InnerText.Replace("-", string.Empty);
+                    if (uint.TryParse(s, out uint result))
+                        return result;
+                    return 0;
+                }
 
             return 0;
         }

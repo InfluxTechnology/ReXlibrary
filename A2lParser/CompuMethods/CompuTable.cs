@@ -8,6 +8,6 @@ namespace A2lParserLib.CompuMethods
     internal class CompuTable : CompuMethod
     {
         public int NumberOfPairs { get; set; }
-        public Dictionary<int, object> Values { get; set; }
+        public Dictionary<Int64, object> Values { get; set; }
     }
 }

@@ -1,6 +1,7 @@
 ﻿using InfluxShared.Generic;
 using InfluxShared.Helpers;
 using System;
+using System.Linq;
 using System.Net;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -18,6 +19,7 @@ namespace RXD.Blocks
         public Type PropType;
 
         public PropertyData SubElementCount = null;
+        public PropertyData SubElementSizes = null;
 
         public object Data = null;
 
@@ -27,6 +29,22 @@ namespace RXD.Blocks
             get => Data;
             set
             {
+                if (PropType == typeof(string[]))
+                {
+                    if (value.GetType() == PropType)
+                        Data = value;
+                    else
+                        Data = Convert.ChangeType(value, PropType);
+
+                    if (SubElementCount != null && SubElementCount.Name != string.Empty)
+                        SubElementCount.Value = ((string[])Data).Length;
+
+                    if (SubElementSizes != null)
+                        SubElementSizes.Value = Array.ConvertAll((string[])Data, s => (byte)(s?.Length ?? 0));
+
+                    return;
+                }
+
                 if (value.GetType() == PropType)
                     Data = value;
                 else if (PropType.IsEnum)
@@ -39,6 +57,8 @@ namespace RXD.Blocks
                         Data = (Data as string).PadRight(SubElementCount.Value, '0').Substring(0, SubElementCount.Value);
                     else
                         SubElementCount.Value = ((string)value).Length;
+                else if (PropType.IsArray && SubElementCount != null && SubElementCount.Name != string.Empty)
+                    SubElementCount.Value = ((Array)Data).Length;
             }
         }
 
@@ -50,6 +70,8 @@ namespace RXD.Blocks
             {
                 if (PropType == typeof(string))
                     return (SubElementCount == null) ? 0 : SubElementCount.Value;
+                else if (PropType == typeof(string[]))
+                    return SubElementSizes?.Value is byte[] sizes ? sizes.Sum(s => s) : 0;
                 else if (PropType.IsArray)
                     return (SubElementCount == null) ? 0 : SubElementCount.Value * SubElementSize;
                 else
@@ -61,6 +83,9 @@ namespace RXD.Blocks
 
         internal Int32 GetTypeSize(Type pType)
         {
+            if (pType == typeof(string))
+                return 1;
+
             Type t = pType.IsEnum ? Enum.GetUnderlyingType(pType) : pType;
             if (t == typeof(bool))
                 t = typeof(byte);
@@ -124,6 +149,8 @@ namespace RXD.Blocks
 
             if (PropType == typeof(string))
                 return Encoding.ASCII.GetBytes(Value);
+            else if (PropType == typeof(string[]))
+                return Encoding.ASCII.GetBytes(string.Concat(((string[])Value).Select(s => s ?? string.Empty)));
             else if (PropType.IsArray)
                 if (PropType.GetElementType().IsEnum)
                     return Bytes.EnumArrayToBytes(Data);

@@ -22,6 +22,8 @@
     <Compile Include="$(MSBuildThisFileDirectory)FileObjects\ICanMessage.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)FileObjects\ICanSignal.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)FileObjects\ItemConversion.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)FileObjects\KvaserExporter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)FileObjects\KvaserMsg.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)FileObjects\LDF.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)FileObjects\ModuleXml.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)FileObjects\ObjectLibrary.cs" />

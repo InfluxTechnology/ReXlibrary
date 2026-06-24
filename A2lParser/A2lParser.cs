@@ -1,9 +1,11 @@
 ﻿using A2lParserLib.CompuMethods;
+using A2lParserLib.Interfaces;
 using A2lParserLib.Items;
 using A2lParserLib.Settings;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -34,6 +36,14 @@ namespace A2lParserLib
         private const string XCP_ON_CAN_END = @"/end(\s*)XCP_ON_CAN\b";
         private const string DAQ_LIST_CAN_ID_START = @"/begin(\s*)DAQ_LIST_CAN_ID\b";
         private const string DAQ_LIST_CAN_ID_END = @"/end(\s*)DAQ_LIST_CAN_ID\b";
+        private const string CCP_START = @"/begin(\s*)IF_DATA(\s*)ASAP1B_CCP";
+        private const string CCP_END = @"/end(\s*)IF_DATA";
+        private const string CCP_SOURCE_START = @"/begin(\s*)SOURCE\b";
+        private const string CCP_SOURCE_END = @"/end(\s*)SOURCE\b";
+        private const string CCP_RASTER_START = @"/begin(\s*)RASTER\b";
+        private const string CCP_RASTER_END = @"/end(\s*)RASTER\b";
+        private const string TP_BLOB_START = @"/begin(\s*)TP_BLOB";
+        private const string TP_BLOB_END = @"/end(\s*)TP_BLOB";
 
         public string FileName { get; set; }
         public string FileNameSerialized { get; set; }
@@ -42,8 +52,16 @@ namespace A2lParserLib
         {
             var data = System.IO.File.ReadAllText(filePath, Encoding.UTF8);
             Module = new Module();
-            Module.XcpSettingsAll = await GetXcpSettings(data);
-            Module.XcpSettings = Module.XcpSettingsAll[0];
+            Module.XcpSettingsList = await GetXcpSettings(data);
+            Module.XcpSettingsList.AddRange(await GetCcpSettings(data));
+            for (int i = Module.XcpSettingsList.Count - 1; i >= 0; i--)
+            {
+                if (Module.XcpSettingsList[i].Events.Count == 0 && Module.XcpSettingsList[i].Daqs.Count == 0)
+                    Module.XcpSettingsList.Remove(Module.XcpSettingsList[i]);
+            }
+            if (Module.XcpSettingsList.Count == 0)
+                Module.XcpSettingsList.Add(new XcpSettings());
+            Module.XcpSettings = Module.XcpSettingsList[0];
             ProgressCallback?.Invoke("Reading CompuMethods...");
             ProgressCallback?.Invoke(33);
             Module.CompuMethods = await GetCompuMethods(data);
@@ -54,6 +72,7 @@ namespace A2lParserLib
             ProgressCallback?.Invoke(98);
             Module.Characteristics = await GetCharacteristics(data);
             ProgressCallback?.Invoke(100);
+            
             return Module;
         }
 
@@ -67,6 +86,8 @@ namespace A2lParserLib
 
             foreach (string measurementStr in GetFirstInstanceTextBetween(data, M_ST_START, M_ST_END))
             {
+                if (!measurementStr.ToLower().Contains("ecu_address"))
+                    continue;
                 string cleanedInput = Regex.Replace(measurementStr, @"/\*.*?\*/", "").Trim();  //remove comments
                 cleanedInput = cleanedInput.Replace("\\", "").Replace("\"\"", "\"");
                 //Match match = Regex.Match(cleanedInput, pattern);
@@ -80,6 +101,18 @@ namespace A2lParserLib
                     Match match = Regex.Match(cleanedInput.Substring(nameRegex.Length + 1), pattern);
                     measVar.DataType = match.Groups[1].Value.Cleanup().ToEnum<DataType>();
                     measVar.Size = measVar.DataType.ToSize();
+                    if (cleanedInput.Contains("BYTE_ORDER"))
+                    {
+                        if (GetStringAfter(cleanedInput, "BYTE_ORDER").Contains("MSB_FIRST"))
+                            measVar.ByteOrder = ByteOrder.Motorola;
+                        else
+                            measVar.ByteOrder = ByteOrder.Intel;
+                    }
+                    else
+                    {
+                        if (Module.XcpSettings != null)
+                            measVar.ByteOrder = Module.XcpSettings.ByteOrder;
+                    }
                     if (Module.CompuMethods.TryGetValue(match.Groups[2].Value.Cleanup(), out CompuMethod compuMethod))
                     {
                         measVar.CompuMethod = compuMethod;
@@ -147,7 +180,7 @@ namespace A2lParserLib
             string pattern = @"(\S+)+\s+(\S+)+\s+(\S+)+\s+([+-]?(?=\.\d|\d)(?:\d+)?(?:\.?\d*))(?:[Ee]([+-]?\d+))?\s+(\S+)+\s+([+-]?(?=\.\d|\d)(?:\d+)?(?:\.?\d*))(?:[Ee]([+-]?\d+))?\s+([+-]?(?=\.\d|\d)(?:\d+)?(?:\.?\d*))(?:[Ee]([+-]?\d+))?";
             string namePattern = @"^(\S+)+\s+(.*)";
             foreach (string calibrationStr in GetFirstInstanceTextBetween(data, C_ST_START, C_ST_END))
-            {
+            {                
                 string cleanedInput = Regex.Replace(calibrationStr, @"/\*.*?\*/", "").Trim();  //remove comments
                 //Match match = Regex.Match(cleanedInput, pattern);
                 Characteristic item = null;
@@ -157,19 +190,35 @@ namespace A2lParserLib
                     Match nameRegex = Regex.Match(cleanedInput, namePattern);
                     item.Name = nameRegex.Groups[1].Value.Cleanup();
                     item.Description = nameRegex.Groups[2].Value.Cleanup();
-                    Match match = Regex.Match(cleanedInput.Substring(nameRegex.Length + 1), pattern);
-                    if (match.Groups[1].Value.Cleanup().ToUpper() == "VALUE")
+                    string characteristicPattern = @"^(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)";
+
+                    //Match match = Regex.Match(cleanedInput.Substring(nameRegex.Length + 1).Cleanup(), characteristicPattern);
+                    var values = cleanedInput.Cleanup().Split((char[])null, StringSplitOptions.RemoveEmptyEntries).ToList();
+                    var idx = values.IndexOf("VALUE");
+                    if (idx > 0)
                     {
-                        item.EcuAddress = StrToIntDef(match.Groups[2].Value.Cleanup());
-                        item.DataType = match.Groups[3].Value.Cleanup().ToDataType();
+                        item.EcuAddress = StrToIntDef(values[idx + 1]);
+                        item.DataType = values[idx + 2].ToDataType();
                         item.Size = item.DataType.ToSize();
-                        if (Module.CompuMethods.TryGetValue(match.Groups[6].Value.Cleanup(), out CompuMethod compuMethod))
+                        if (cleanedInput.Contains("BYTE_ORDER"))
+                        {
+                            if (GetStringAfter(cleanedInput, "BYTE_ORDER").Contains("MSB_FIRST"))
+                                item.ByteOrder = ByteOrder.Motorola;
+                            else
+                                item.ByteOrder = ByteOrder.Intel;
+                        }
+                        else
+                        {
+                            if (Module.XcpSettings != null)
+                                item.ByteOrder = Module.XcpSettings.ByteOrder;
+                        }
+                        if (Module.CompuMethods.TryGetValue(values[idx + 4], out CompuMethod compuMethod))
                         {
                             item.CompuMethod = compuMethod;
                             item.Units = compuMethod.Units;
                         }
-                        item.MinValue = double.Parse(match.Groups[7].Value.Cleanup());
-                        item.MaxValue = double.Parse(match.Groups[9].Value.Cleanup());
+                        item.MinValue = double.Parse(values[idx + 5].Cleanup());
+                        item.MaxValue = double.Parse(values[idx + 6].Cleanup());
                         characteristics.Add(item);
                     }
                 }
@@ -191,16 +240,31 @@ namespace A2lParserLib
             {
                 CompuMethods.Add(table.Key, table.Value);
             }
-            string pattern = @"(\S+)+\s+""([^""]*)""+\s+(\S+)+\s+""([^""]*)""+\s+""([^""]*)""";
+            //string pattern = @"(\S+)+\s+""([^""]*)""+\s+(\S+)+\s+""([^""]*)""+\s+""([^""]*)""";
+            string pattern = @"^(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)";
+
             foreach (string compuMethodStr in GetFirstInstanceTextBetween(data, CM_ST_START, CM_ST_END))
             {
-                Match match = Regex.Match(compuMethodStr.Cleanup(), pattern);
+                string cleanedInput = Regex.Replace(compuMethodStr, @"/\*.*?\*/", "").Trim();  //remove comments
+                //var lines = cleanedInput.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Select(l => l.Trim()).ToList();
+                var matches = Regex.Matches(cleanedInput, "\"([^\"\\\\]*(\\\\.[^\"\\\\]*)*)\"|\\S+");  //If it's on the same row
+                List<string> lines = new ();
+                //if (matches.Count > 1)
+                foreach (Match match in matches) 
+                {
+                    lines.Add(match.Value);
+                   /* lines.RemoveAt(0);
+                    for (int i = matches.Count - 1; i >= 0; i--)
+                    {
+                        lines.Insert(0, matches[i].Value.Cleanup());
+                    }*/
+                }
                 try
                 {
-                    if (!CompuTables.ContainsKey(match.Groups[1].Value.Cleanup()))
+                    if (!CompuTables.ContainsKey(lines[0].Cleanup()))
                     {
                         CompuMethod compMet = null;
-                        CompuMethodType compuType = match.Groups[3].Value.Cleanup().ToEnum<CompuMethodType>();
+                        CompuMethodType compuType = lines[2].Cleanup().ToEnum<CompuMethodType>();
                         if (compuType == CompuMethodType.RAT_FUNC)
                         {
                             compMet = new RatFunc();
@@ -216,11 +280,11 @@ namespace A2lParserLib
                         else
                           if (compMet is null)
                             continue;
-                        compMet.Name = match.Groups[1].Value.Cleanup();
-                        compMet.Description = match.Groups[2].Value.Cleanup();
-                        compMet.Type = match.Groups[3].Value.Cleanup().ToEnum<CompuMethodType>();
-                        compMet.FormatString = match.Groups[4].Value.Cleanup();
-                        compMet.Units = match.Groups[5].Value.Cleanup();
+                        compMet.Name = lines[0].Cleanup();
+                        compMet.Description = lines[1].Cleanup();
+                        compMet.Type = lines[2].Cleanup().ToEnum<CompuMethodType>();
+                        compMet.FormatString = lines[3].Cleanup();
+                        compMet.Units = lines[4].Cleanup();
                         //if (compMet.Type == CompuMethodType.TAB_VERB)
                         //    (compMet as CompuTable).RefTable = GetStringAfter(compuMethodStr, "COMPU_TAB_REF").Cleanup();
                         if (compMet.Type == CompuMethodType.RAT_FUNC)
@@ -262,8 +326,8 @@ namespace A2lParserLib
                 try
                 {
                     compMet.Coeffs[1] = Convert.ToDouble(coeffs[5]) / Convert.ToDouble(coeffs[1]);
-                    compMet.Coeffs[2] = Convert.ToDouble(coeffs[2]) / Convert.ToDouble(coeffs[1]);
-                    compMet.Coeffs[4] = Convert.ToDouble(coeffs[4]);
+                    compMet.Coeffs[2] = Convert.ToDouble(coeffs[2]) / Convert.ToDouble(coeffs[1]) * (-1); //In Dialog it's * -1
+                    compMet.Coeffs[4] = Convert.ToDouble(coeffs[4]) * (-1); //In Dialog it's * -1
                     compMet.Coeffs[5] = Convert.ToDouble(coeffs[1]);
                 }
                 catch (Exception)
@@ -311,23 +375,39 @@ namespace A2lParserLib
             Dictionary<string, CompuTable> CompuMethodVTabs = new();
             foreach (string compuMethodVTabStr in GetFirstInstanceTextBetween(data, CMV_ST_START, CMV_ST_END))
             {
-                string pattern = @"(\S+)+\s+""([^""]*)""+\s+(\S+)+\s+(\d+)";
-                Match match = Regex.Match(compuMethodVTabStr.Cleanup(), pattern);
+                string cleanedInput = Regex.Replace(compuMethodVTabStr, @"/\*.*?\*/", "").Trim();  //remove comments
+
+                //var lines = cleanedInput.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Select(l => l.Trim()).ToList();
+                var matches = Regex.Matches(cleanedInput.Cleanup(), "\"([^\"\\\\]*(\\\\.[^\"\\\\]*)*)\"|\\S+");
+               
                 try
                 {
-                    if (!CompuMethodVTabs.ContainsKey(match.Groups[0].Value.Cleanup()))
+                    if (!CompuMethodVTabs.ContainsKey(matches[0].Value.Cleanup()))
                     {
                         CompuTable table = new CompuTable();
-                        table.Name = match.Groups[1].Value.Cleanup();
-                        table.Description = match.Groups[2].Value.Cleanup();
-                        table.Type = match.Groups[3].Value.Cleanup().ToEnum<CompuMethodType>();
-                        table.NumberOfPairs = int.Parse(match.Groups[4].Value.Cleanup());
-                        table.Values = new Dictionary<int, object>();
-                        string[] strSplt = compuMethodVTabStr.Trim().Substring(match.Length + 1).Cleanup().Split('\n');
+                        table.Name = matches[0].Value.Cleanup();
+                        table.Description = matches[1].Value.Cleanup();
+                        table.Type = matches[2].Value.Cleanup().ToEnum<CompuMethodType>();
+                        table.NumberOfPairs = int.Parse(matches[3].Value.Cleanup());
+                        table.Values = new Dictionary<Int64, object>();
                         for (int i = 0; i < table.NumberOfPairs; i++)
                         {
-                            var cmptSplt = strSplt[i].Cleanup().Trim().Split(' ');
-                            table.Values.Add(int.Parse(cmptSplt[0].Cleanup()), cmptSplt.Length == 1 ? "" : cmptSplt[1].Cleanup());
+                            if (matches.Count > 5 + i * 2)
+                                try
+                                {
+                                    string line = matches[4 + i].Value;
+                                    /* int sep = line.IndexOfAny(new[] { ' ', '\t' });
+                                     if (sep < 0)
+                                         throw new FormatException($"Invalid key/value line: {line}");*/
+                                    Int64 key = Int64.Parse(matches[4 + i * 2].Value.Cleanup());
+                                    string value = matches[5 + i * 2].Value;
+                                    table.Values.Add(key, value);
+                                }
+                                catch (Exception exc)
+                                {
+                                    Module.ErrorLog.AddError($"Error parsing key:{matches[4 + i * 2].Value}");
+                                    Module.ErrorLog.AddError(exc.Message + $"  Table: {table.Name}");
+                                }
                         }
                         CompuMethodVTabs.Add(table.Name, table);
                     }
@@ -336,8 +416,47 @@ namespace A2lParserLib
                 {
                     Module.ErrorLog.AddError(exc.Message + $"  {string.Join("", compuMethodVTabStr)}");
                 }
-                
-                    
+
+                /*var lines = cleanedInput.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Select(l => l.Trim()).ToList();
+                var matches = Regex.Matches(lines[0].Cleanup(), "\"([^\"\\\\]*(\\\\.[^\"\\\\]*)*)\"|\\S+");
+
+                if (matches.Count > 1)
+                {
+                    lines.RemoveAt(0);
+                    for (int i = matches.Count - 1; i >= 0; i--)
+                    {
+                        lines.Insert(0, matches[i].Value.Cleanup());
+                    }
+                }
+                try
+                {
+                    if (!CompuMethodVTabs.ContainsKey(lines[0].Cleanup()))
+                    {
+                        CompuTable table = new CompuTable();
+                        table.Name = lines[0].Cleanup();
+                        table.Description = lines[1].Cleanup();
+                        table.Type = lines[2].Cleanup().ToEnum<CompuMethodType>();
+                        table.NumberOfPairs = int.Parse(lines[3].Cleanup());
+                        table.Values = new Dictionary<Int64, object>();
+                        for (int i = 0; i < table.NumberOfPairs; i++)
+                        {
+                            string line = lines[4 + i];
+                            int sep = line.IndexOfAny(new[] { ' ', '\t' });
+                            if (sep < 0)
+                                throw new FormatException($"Invalid key/value line: {line}");
+                            Int64 key = Int64.Parse(line.Substring(0, sep));
+                            string value = line.Substring(sep + 1).Trim();
+                            table.Values.Add(key, value);
+                        }
+                        CompuMethodVTabs.Add(table.Name, table); 
+                    }
+                }
+                catch (Exception exc)
+                {
+                    Module.ErrorLog.AddError(exc.Message + $"  {string.Join("", compuMethodVTabStr)}");
+                }*/
+
+
             }
             return CompuMethodVTabs;
         }
@@ -391,7 +510,8 @@ namespace A2lParserLib
                 {
                     try
                     {
-                        XcpSettings settings = new();  
+                        XcpSettings settings = new();
+                        settings.IsXcp = true;
                         settingsList.Add(settings);
                         cleanedStr = protocolLayer.ToString();
                         
@@ -418,8 +538,14 @@ namespace A2lParserLib
                             settings.MaxEventChannels = StrToIntDef(res[2].Cleanup());
                             settings.MinDaq = (byte)StrToIntDef(res[3].Cleanup());
                         }
-                        settings.Daqs = GetDaqLists(cleanedStr);
-                        settings.Events = GetEvents(cleanedStr);
+                        string daqSection = cleanedStr;
+                        var match = Regex.Match(cleanedStr, @"/end\s+DAQ(?!\w)", RegexOptions.IgnoreCase);
+                        if (match.Success)
+                        {
+                            daqSection = daqSection.Substring(0, match.Index).Cleanup();
+                        }                        
+                        settings.Daqs = GetDaqLists(daqSection);
+                        settings.Events = GetEvents(daqSection);
                         GetXcpOnCan(cleanedStr, settings);
                         if (settings.Daqs.Count == 0)
                         {
@@ -534,6 +660,7 @@ namespace A2lParserLib
                         if (daq is not null && daqStr.Contains("FIXED"))
                         {
                             daq.Ident = StrToIntDef(Regex.Match(daqStr, @"FIXED\s+(\S+)").Groups[1].Value.Cleanup());
+                            daq.Ident = daq.Ident & 0x1FFFFFFF;
                         }
                     }
                 }
@@ -605,7 +732,7 @@ namespace A2lParserLib
                     if (evValuesList.Count > 4)
                         xcpEvent.MaxDaqList = (byte)StrToIntDef(evValuesList[4]);
                     if (evValuesList.Count > 5)
-                        xcpEvent.TimeCycle = (byte)StrToIntDef(evValuesList[5]);
+                        xcpEvent.TimeCycle = StrToIntDef(evValuesList[5]);
                     if (evValuesList.Count > 6)
                         xcpEvent.TimeUnit = (byte)StrToIntDef(evValuesList[6]);
                     events.Add(xcpEvent);
@@ -618,8 +745,140 @@ namespace A2lParserLib
             return events;
         }
 
-        
 
+        async Task<List<XcpSettings>> GetCcpSettings(string data)
+        {
+            List<XcpSettings> settingsList = new();
+            foreach (string asap1b in GetFirstInstanceTextBetween(data, CCP_START, CCP_END))
+            {
+                string pattern = @"/\*.*?\*/|//.*?$"; // Regex to match /* */ style comments and // comments
+                string cleanedStr = Regex.Replace(asap1b, pattern, "", RegexOptions.Singleline | RegexOptions.Multiline);
+                XcpSettings settings = new();
+                settings.IsXcp = false;
+                settings.Daqs = GetCcpSource(cleanedStr);
+                settings.Events = GetCcpRaster(cleanedStr);
+                if (cleanedStr.Contains("TP_BLOB"))
+                {
+                    foreach (string tp_blop in GetFirstInstanceTextBetween(cleanedStr, TP_BLOB_START, TP_BLOB_END))
+                    {
+                        string tp_blop_cleaned = Regex.Replace(tp_blop, pattern, "", RegexOptions.Singleline | RegexOptions.Multiline);
+                        var tp_blop_values = Regex.Matches(tp_blop_cleaned, @"([""'].*?[""']|\S+)").ToList();
+                        settings.Cro = (uint)StrToIntDef(tp_blop_values[2]);
+                        settings.Dto = (uint)StrToIntDef(tp_blop_values[3]);
+                        settings.StationAddress = (ushort)StrToIntDef(tp_blop_values[4]);
+                        if (StrToIntDef(tp_blop_values[5]) == 1)
+                            settings.ByteOrder = ByteOrder.Motorola;
+                        else
+                            settings.ByteOrder = ByteOrder.Intel;
+                        for (int i = 0; i < tp_blop_values.Count; i++)
+                        {
+                            if (tp_blop_values[i].ToUpper() == "BAUDRATE" && tp_blop_values.Count > i + 1)
+                                settings.Baudrate = (uint)StrToIntDef(tp_blop_values[i + 1]);                            
+                        }
+                    }
+
+                }
+                for (int i = 0; i < settings.Daqs.Count; i++)
+                {
+                    var daq = settings.Daqs[i];
+                    /* if (settings.Events.Count > daq.EventChannel)
+                     {
+                         var raster = settings.Events[daq.EventChannel];                        
+                         daq.Sampling = raster.GetPrescale(true);
+                         daq.SamplingStr = raster.GetPrescaleString(true);
+                     }  */          //Doesn't work if EventChannels are not sequential             
+                    foreach (var raster in settings.Events)
+                    {
+                        if (raster.Channel == daq.EventChannel)
+                        {
+                            daq.Sampling = raster.GetPrescale(true);
+                            daq.SamplingStr = raster.GetPrescaleString(true);
+                            break;
+                        }
+                    }
+                }
+                if (settings.Daqs.Count > 0)
+                {
+                    settingsList.Add(settings);
+                }
+            }
+            if (settingsList.Count == 0)
+            {
+                settingsList.Add(new XcpSettings());
+            }            
+            return settingsList;
+        }
+
+        private List<XcpEvent> GetCcpRaster(string data)
+        {
+            List<XcpEvent> events = new();
+            foreach (string str in GetFirstInstanceTextBetween(data, CCP_RASTER_START, CCP_RASTER_END))
+            {
+                try
+                {
+                    string pattern = @"/\*.*?\*/|//.*?$"; // Regex to match /* */ style comments and // comments
+                    string cleanedStr = Regex.Replace(str, pattern, "", RegexOptions.Singleline | RegexOptions.Multiline);
+                    var evValuesList = Regex.Matches(cleanedStr, @"([""'].*?[""']|\S+)").ToList();
+
+                    XcpEvent raster = new();
+                    raster.Name = evValuesList[0].Replace("\"", "");
+                    raster.ShortName = evValuesList[1].Replace("\"", "");
+                    raster.Channel = (byte)StrToIntDef(evValuesList[2]);
+                    if (evValuesList.Count > 3)
+                        raster.TimeUnit = (byte)StrToIntDef(evValuesList[3]);
+                    if (evValuesList.Count > 4)
+                        raster.TimeCycle = StrToIntDef(evValuesList[4]);                    
+                    events.Add(raster);
+                }
+                catch (Exception exc)
+                {
+                    Module.ErrorLog.AddError("Error Parsing RASTER " + exc.Message + $"  {string.Join("", str)}");
+                }
+            }
+            return events;
+        }
+
+        private List<XcpDaq> GetCcpSource(string cleanedStr)
+        {
+            List<XcpDaq> ccpSources = new();
+            foreach (string str in GetFirstInstanceTextBetween(cleanedStr, CCP_SOURCE_START, CCP_SOURCE_END))
+            {
+                try
+                {
+                    string pattern = @"/\*.*?\*/|//.*?$"; // Regex to match /* */ style comments and // comments
+                    string cleanedSourceStr = Regex.Replace(str, pattern, "", RegexOptions.Singleline | RegexOptions.Multiline);
+                    var sourceValuesList = Regex.Matches(cleanedSourceStr, @"([""'].*?[""']|\S+)").ToList();
+                    XcpDaq source = new();
+                    source.Name = sourceValuesList[0].Replace("\"", "");
+                    if (cleanedSourceStr.Contains("QP_BLOB"))
+                        for (int i = 0; i < sourceValuesList.Count; i++)
+                        {
+                            if (sourceValuesList[i].ToUpper() == "QP_BLOB" && sourceValuesList.Count > i + 1)
+                                source.DaqIndex = (byte)StrToIntDef(sourceValuesList[i + 1]);
+                            else if (sourceValuesList[i].ToUpper() == "LENGTH" && sourceValuesList.Count > i + 1)
+                                source.MaxOdt = (byte)StrToIntDef(sourceValuesList[i + 1]);
+                            else if (sourceValuesList[i].ToUpper() == "CAN_ID_FIXED" && sourceValuesList.Count > i + 1)
+                                source.Ident = (uint)StrToIntDef(sourceValuesList[i + 1]);
+                            else if (sourceValuesList[i].ToUpper() == "FIRST_PID" && sourceValuesList.Count > i + 1)
+                                source.FirstPid = (short)StrToIntDef(sourceValuesList[i + 1]);
+                            else if (sourceValuesList[i].ToUpper() == "RASTER" && sourceValuesList.Count > i + 1)
+                            {
+                                //source.EventFixed = true;
+                                source.EventChannel = (byte)StrToIntDef(sourceValuesList[i + 1]);
+                            }
+                            source.Ident = source.Ident & 0x1FFFFFFF;
+                        }
+                    ccpSources.Add(source);
+                }
+                catch (Exception exc)
+                {
+                    Module.ErrorLog.AddError("Error Parsing SOURCE " + exc.Message + $"  {string.Join("", str)}");
+                }
+            }
+            return ccpSources;
+        }
+
+       
     }
 
 }

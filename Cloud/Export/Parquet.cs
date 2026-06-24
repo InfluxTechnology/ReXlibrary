@@ -13,7 +13,7 @@ namespace Cloud.Export
 {
     internal static class Parquet
     {
-        internal static async Task<bool> ToParquet(IStorageProvider storage, string bucket, string destFile, BinRXD rxd, ExportDbcCollection signalsCollection, ILogProvider? log = null)
+        internal static async Task<bool> ToParquet(IStorageProvider storage, string bucket, string destFile, BinRXD rxd, ExportCollections signalsCollection, ILogProvider? log = null)
         {
             int partId = 1;
             string uploadId = "";
@@ -69,7 +69,7 @@ namespace Cloud.Export
             var exportParquet = new BinRXD.ExportSettings()
             {
                 StorageCache = StorageCacheType.Memory,
-                SignalsDatabase = new() { dbcCollection = signalsCollection },
+                SignalsDatabase = signalsCollection,
                 ProcessingRules = rules
             };
             var ddcParquet = rxd.ToDoubleData(exportParquet);

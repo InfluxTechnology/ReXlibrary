@@ -17,6 +17,6 @@ namespace A2lParserLib.Interfaces
         public byte MaxOdtEntries { get; set; }  //Maximum number of entries in an ODT
         public byte EventChannel { get; set; }
         public bool EventFixed { get; set; }
-        public List<XcpOdt> Odts { get; set; }
+        public List<Odt> Odts { get; set; }
     }
 }

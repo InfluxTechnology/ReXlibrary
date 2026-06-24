@@ -10,7 +10,8 @@
     public enum Protocol_Type : byte
     {
         NO,
-        UDS
+        UDS,
+        XCP
     }
 
     public enum RealTimeSourceType : byte

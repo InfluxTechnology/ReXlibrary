@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Globalization;
 using System.IO;
 using System.Text;
 
@@ -11,7 +12,8 @@ namespace InfluxShared.FileObjects
 
         public override void WriteHeader(DateTime LogTime)
         {
-            traceWriter.WriteLine("date " + LogTime.ToString("ddd MMM dd hh:mm:ss.fff tt yyyy"));
+            traceWriter.WriteLine("date " + LogTime.ToString("ddd MMM dd hh:mm:ss.fff tt yyyy", CultureInfo.InvariantCulture));
+
             traceWriter.WriteLine("base hex  timestamps absolute");
             traceWriter.WriteLine("internal events logged");
         }

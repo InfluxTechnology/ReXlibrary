@@ -174,7 +174,7 @@ namespace DbcParserLib.Influx
         static void WriteNodes(this DBC dbc, StreamWriter sw)
         {
             sw.WriteLine("");
-            string line = "BU_: " + (dbc.NodeNames.Count == 0 ? DefaultNode : dbc.NodeNames[0]);
+            string line = "BU_: " + (dbc.NodeNames.Count == 0 ? DefaultNode : dbc.NodeNames[0]).Replace("\"", "\\\"");
             sw.WriteLine(line);
         }
 
@@ -191,10 +191,13 @@ namespace DbcParserLib.Influx
             {
                 sw.WriteLine(
                     Environment.NewLine +
-                    $"BO_ {msg.CANID} {msg.Name.DbcNameClean()}: {msg.DLC} {msg.Transmitter ?? (dbc.NodeNames.Count == 0 ? DefaultNode : dbc.NodeNames[0])}"
+                    $"BO_ {msg.CANID} {msg.Name.DbcNameClean()}: {msg.DLC} {msg.Transmitter ?? (dbc.NodeNames.Count == 0 ? DefaultNode : dbc.NodeNames[0]).Replace("\"", "\\\"")}"
                 );
-
                 foreach (DbcItem sig in msg.Items)
+                {
+                    sig.Units = sig.Units.Replace("\"", "");
+                    if (sig.Type == DBCSignalType.Mode)
+                        sig.MaxValue = 255;
                     sw.WriteLine(
                         $"  SG_ {sig.Name.DbcNameClean()} {sig.ModeStr()} : {sig.StartBit}|{sig.BitCount}@" +
                         (sig.ByteOrder == DBCByteOrder.Intel ? "1" : "0") +
@@ -202,6 +205,7 @@ namespace DbcParserLib.Influx
                         $"({sig.Factor.ToString(nfi)},{sig.Offset.ToString(nfi)}) [{sig.MinValue.ToString(nfi)}|{sig.MaxValue.ToString(nfi)}]" +
                         $" \"{sig.Units}\" {(dbc.NodeNames.Count == 0 ? DefaultNode : dbc.NodeNames[0])}"
                     );
+                }                
             }
         }
 
@@ -213,13 +217,13 @@ namespace DbcParserLib.Influx
             {
                 if (msg.Comment is not null && msg.Comment != "")
                     sw.WriteLine(
-                        $"CM_ BO_ {msg.CANID} \"{msg.Comment}\";"
+                        $"CM_ BO_ {msg.CANID} \"{msg.Comment.Replace("\"", "\\\"")}\";"
                     );
 
                 foreach (DbcItem sig in msg.Items)
                     if (sig.Comment is not null && sig.Comment != "")
                         sw.WriteLine(
-                            $"CM_ SG_ {msg.CANID} {sig.Name.DbcNameClean()} \"{sig.Comment}\";"
+                            $"CM_ SG_ {msg.CANID} {sig.Name.DbcNameClean()} \"{sig.Comment.Replace("\"", "\\\"")}\";"
                         );
             }
         }
@@ -235,7 +239,7 @@ namespace DbcParserLib.Influx
                         sw.Write($"VAL_ {msg.CANID} {sig.Name.DbcNameClean()}");
 
                         foreach (KeyValuePair<double, string> pair in sig.Conversion.TableVerbal.Pairs)
-                            sw.Write($" {pair.Key} \"{pair.Value}\"");
+                            sw.Write($" {pair.Key} \"{pair.Value.Replace("\"", "\\\"")}\"");
                         sw.WriteLine(";");
                     }
         }

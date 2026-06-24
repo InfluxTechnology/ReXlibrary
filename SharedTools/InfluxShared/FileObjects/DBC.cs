@@ -124,7 +124,7 @@ namespace InfluxShared.FileObjects
             Messages = new List<DbcMessage>();
         }
 
-        public static DBC CreateMode(List<PollingItem> ItemList, byte UDSService, byte ModeSize)
+        public static DBC CreateMode(bool isExtended, bool isCanFd, List<PollingItem> ItemList, byte UDSService, byte ModeSize)
         {
             DBC dbc = new DBC();
             var groupedItems = ItemList.Where(uds => uds.UDSServiceID == UDSService).GroupBy(i => i.RxIdent).Select(grp => grp.ToList()).ToList();
@@ -138,6 +138,12 @@ namespace InfluxShared.FileObjects
                     MsgType = DBCMessageType.Standard
                 };
 
+                if (isExtended && isCanFd)
+                    msg.MsgType = DBCMessageType.CanFDExtended;
+                else if (isExtended)
+                    msg.MsgType = DBCMessageType.Extended;
+                else if (isCanFd)
+                    msg.MsgType = DBCMessageType.CanFDStandard;
                 dbc.Messages.Add(msg);
                 msg.Items.Add(new DbcItem()
                 {
@@ -235,9 +241,12 @@ namespace InfluxShared.FileObjects
             return dbc;
         }
 
-        public static DBC CreateXCP(List<PollingItem> ItemList, IXcpSettings xcpconf)
+        public static DBC CreateXCP(List<PollingItem> ItemList, ICcpXcpSettings xcpconf)
         {
             DBC dbc = new DBC();
+            var allItems = ItemList.Where(uds => uds.Service == ServiceType.CCP || uds.Service == ServiceType.XCP).ToList();
+            var daqItems = allItems.Where(uds => !uds.ShortUpload).ToList();
+            var shortUploadItems = allItems.Where(uds => uds.ShortUpload).ToList();
 
             dbc.Messages.Add(new DbcMessage()
             {
@@ -247,30 +256,45 @@ namespace InfluxShared.FileObjects
                 MsgType = xcpconf.IsCanFd ? (xcpconf.IsExtended ? DBCMessageType.CanFDExtended : DBCMessageType.CanFDStandard) : (xcpconf.IsExtended ? DBCMessageType.Extended : DBCMessageType.Standard),
             });
 
-            var groupedItems = ItemList.Where(uds => uds.Service == ServiceType.XCP).GroupBy(i => i.UDSServiceID);
+            var groupedItems = daqItems.GroupBy(i => i.UDSServiceID);
+            
             foreach (var group in groupedItems)
             {
                 var items = group.ToList();
-                var msg = new DbcMessage()
+                DbcMessage msg = null;
+                uint canId = items[0].RxIdent;
+                if (xcpconf.Daqs.Count > items[0].UDSServiceID)
                 {
-                    Name = "DTO ",
-                    CANID = items[0].RxIdent,
-                    DLC = 8,
-                    MsgType = xcpconf.IsCanFd ? (xcpconf.IsExtended ? DBCMessageType.CanFDExtended : DBCMessageType.CanFDStandard) : (xcpconf.IsExtended ? DBCMessageType.Extended : DBCMessageType.Standard)
-                };
-
-                dbc.Messages.Add(msg);
-
-                msg.Items.Add(new DbcItem()
+                    canId = xcpconf.Daqs[items[0].UDSServiceID].Ident;
+                }
+                if (dbc.Messages.Any(m => m.CANID == canId))
+                { 
+                    msg = dbc.Messages.First(m => m.CANID == canId);
+                }
+                else
                 {
-                    Name = "DTOPID",
-                    ItemType = 0,
-                    StartBit = 0,
-                    BitCount = 8,
-                    ByteOrder = DBCByteOrder.Intel,
-                    Type = DBCSignalType.Mode,
-                    ValueType = DBCValueType.Unsigned,
-                });
+                    msg = new DbcMessage()
+                    {
+                        Name = $"DTO_{items[0].UDSServiceID}",
+                        CANID = canId,
+                        DLC = 8,
+                        MsgType = xcpconf.IsCanFd ? (xcpconf.IsExtended ? DBCMessageType.CanFDExtended : DBCMessageType.CanFDStandard) : (xcpconf.IsExtended ? DBCMessageType.Extended : DBCMessageType.Standard)
+                    };
+
+                    dbc.Messages.Add(msg);
+
+                    msg.Items.Add(new DbcItem()
+                    {
+                        Name = "DTOPID",
+                        ItemType = 0,
+                        StartBit = 0,
+                        BitCount = 8,
+                        ByteOrder = DBCByteOrder.Intel,
+                        Type = DBCSignalType.Mode,
+                        ValueType = DBCValueType.Unsigned,
+                    });
+                }
+                
 
                 foreach (var sig in items)
                 {
@@ -278,12 +302,34 @@ namespace InfluxShared.FileObjects
                     sig.CopyProperties(newSig);
                     newSig.Type = DBCSignalType.ModeDependent;
                     newSig.UDS = 0;
-                    newSig.Ident = sig.RxIdent;
-                    newSig.StartBit += (ushort)(8 *(byte)xcpconf.Timestamp);
-
-                    msg.Items.Add(newSig);
-                    msg.DLC = (byte)Math.Max(msg.DLC, (newSig.StartBit + newSig.BitCount + 7) / 8);
+                    newSig.Ident = canId;
+                    newSig.ByteOrder = sig.ByteOrder;
+                    newSig.StartBit += (ushort)(8 * (byte)xcpconf.Timestamp);                    
+                    msg?.DLC = (byte)Math.Max(msg.DLC, (newSig.StartBit + newSig.BitCount + 7) / 8);
+                    if (newSig.ByteOrder == DBCByteOrder.Motorola)
+                        newSig.StartBit = (ushort)(newSig.StartBit + 7);
+                    msg?.Items.Add(newSig);
                 }
+            }
+
+            foreach (var sig in shortUploadItems)
+            {
+                DbcMessage msg = new DbcMessage()
+                {
+                    Name = $"SHORT_UPLOAD_{sig.Name}",
+                    CANID = sig.RxIdent,
+                    DLC = 8,
+                    MsgType = xcpconf.IsCanFd ? (xcpconf.IsExtended ? DBCMessageType.CanFDExtended : DBCMessageType.CanFDStandard) : (xcpconf.IsExtended ? DBCMessageType.Extended : DBCMessageType.Standard)
+                };
+
+                DbcItem newSig = new DbcItem();
+                sig.CopyProperties(newSig);
+                newSig.Type = DBCSignalType.Standard;
+                newSig.UDS = 0;
+                newSig.ByteOrder = sig.ByteOrder;
+                msg.Items.Add(newSig);
+                msg.DLC = (byte)Math.Max(msg.DLC, (newSig.StartBit + newSig.BitCount + 7) / 8);
+                dbc.Messages.Add(msg);
             }
 
             return dbc;
@@ -336,6 +382,8 @@ namespace InfluxShared.FileObjects
 
         public void AddSignal(ICanSignal Signal)
         {
+            if (Signal is DbcItem dbc)
+                Signal = dbc.Clone;
             Signals.Add(Signal);
             Multiplex mp;
             if (!MultiplexDict.TryGetValue(Signal.UDS, out mp))

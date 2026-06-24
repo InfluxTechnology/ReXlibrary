@@ -22,6 +22,8 @@ namespace InfluxShared.FileObjects
         public double Factor => Conversion.Formula.CoeffB;
         public double Offset => Conversion.Formula.CoeffC;
 
+        public LdfItem Clone => (LdfItem)MemberwiseClone();
+
         public static bool operator ==(LdfItem item1, LdfItem item2) =>
             item1.StartBit == item2.StartBit &&
             item1.BitCount == item2.BitCount;
@@ -154,9 +156,10 @@ namespace InfluxShared.FileObjects
             else
                 return false;
         }
+
         public void AddSignal(LdfItem Signal)
         {
-            Signals.Add(Signal);
+            Signals.Add(Signal.Clone);
         }
     }
 

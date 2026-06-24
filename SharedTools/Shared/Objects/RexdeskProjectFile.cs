@@ -28,13 +28,42 @@ namespace Influx.Shared.Objects
 
         public string FullFileName { get; set; } = "";
 
+        bool TryGetKnownFileDescription(string filename, out FileDescription description)
+        {
+            description = null;
+            string entryName = Path.GetFileName(filename);
+
+            if (string.IsNullOrWhiteSpace(entryName))
+                return false;
+
+            if (Path.GetExtension(entryName).Equals(".isf", StringComparison.OrdinalIgnoreCase))
+            {
+                description = new FileDescription() { Name = filename, FileType = EntryFileType.Library };
+                return true;
+            }
+
+            if (entryName.StartsWith("rexmodule_can", StringComparison.OrdinalIgnoreCase) &&
+                entryName.EndsWith(".xml", StringComparison.OrdinalIgnoreCase))
+            {
+                int start = "rexmodule_can".Length;
+                int end = entryName.LastIndexOf(".xml", StringComparison.OrdinalIgnoreCase);
+                string modulePart = entryName.Substring(start, end - start);
+                if (byte.TryParse(modulePart, out byte canBus))
+                {
+                    description = new FileDescription() { Name = filename, FileType = EntryFileType.ModuleXml, Module = canBus };
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         FileDescription GetFileDescription(string filename)
         {
-            if (Path.GetExtension(filename).ToLower() == ".isf")
-            {
-                return new FileDescription() { Name = filename, FileType = EntryFileType.Library };
-            }
-            else if (Path.GetExtension(filename).ToLower() == ".xml")
+            if (TryGetKnownFileDescription(filename, out FileDescription knownDescription))
+                return knownDescription;
+
+            if (Path.GetExtension(filename).ToLower() == ".xml")
             {
                 foreach (var entry in Rpf.Entries)
                 {
@@ -223,7 +252,6 @@ namespace Influx.Shared.Objects
             var list = new List<FileDescription>();
             foreach (var entry in Rpf.Entries)
             {
-                var stream = entry.Open();
                 var type = GetFileDescription(entry.FullName);
                 list.Add(type);
             }
@@ -240,6 +268,29 @@ namespace Influx.Shared.Objects
                 if (Path.GetExtension(entry).ToLower() == ".isf" && entry.ToLower().Contains(".dbc"))
                     Rpf.Entries[i].Delete();
             } 
+        }
+        public void DeleteOdxA2lFiles()
+        {
+            if (Rpf.Mode != ZipArchiveMode.Update)
+                return;
+            for (int i = Rpf.Entries.Count - 1; i >= 0; i--)
+            {
+                string entry = Rpf.Entries[i].Name;
+                if (entry.ToLower().Contains(".odx") || entry.ToLower().Contains(".mdx") || entry.ToLower().Contains(".a2l"))
+                    Rpf.Entries[i].Delete();
+            }
+        }
+
+        public void DeleteFilesByPrefix(string prefix)
+        {
+            if (Rpf.Mode != ZipArchiveMode.Update || string.IsNullOrEmpty(prefix))
+                return;
+
+            for (int i = Rpf.Entries.Count - 1; i >= 0; i--)
+            {
+                if (Rpf.Entries[i].Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                    Rpf.Entries[i].Delete();
+            }
         }
 
         public void Close()

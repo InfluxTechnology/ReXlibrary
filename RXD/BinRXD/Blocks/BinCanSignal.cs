@@ -64,7 +64,8 @@ namespace RXD.Blocks
         };
 
         public override ChannelDescriptor GetDataDescriptor => new ChannelDescriptor()
-        {
+        { StartBit = 0, BitCount = 32, isIntel = true, HexType = typeof(Single), conversionType = ConversionType.None, Name = GetName, Units = GetUnits };
+        /*{
             StartBit = this[BinProp.StartBit],
             BitCount = this[BinProp.BitCount],
             isIntel = this[BinProp.Endian] == SignalByteOrder.INTEL,
@@ -74,7 +75,7 @@ namespace RXD.Blocks
             Offset = this[BinProp.ParB],
             Name = GetName,
             Units = GetUnits
-        };
+        };*/
 
         internal override void SetupVersions()
         {

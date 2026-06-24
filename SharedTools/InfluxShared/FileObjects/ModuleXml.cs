@@ -18,7 +18,8 @@ namespace InfluxShared.FileObjects
     public enum ServiceType : byte
     {
         UDS,
-        XCP
+        XCP,
+        CCP
     }
 
     [Serializable]
@@ -31,8 +32,8 @@ namespace InfluxShared.FileObjects
         [XmlElement("CONFIG_ITEM_LIST")]
         public ConfigItemList ConfigItemList { get; set; }
 
-        [XmlElement("CONFIG_XCP")]
-        public XcpConfigXml XcpCfg { get; set; }
+        [XmlElement("CONFIG_CCPXCP")]
+        public CcpXcpConfigXml CcpXcpCfg { get; set; }        
 
         [XmlElement("PERIODIC_ITEM_LIST")]
         public PeriodicItemList PeriodicItemList { get; set; }
@@ -46,8 +47,7 @@ namespace InfluxShared.FileObjects
             PeriodicItemList = new();
             ConfigItemList = new ConfigItemList();
             Config = new Config();
-            XcpCfg = new();
-            //XcpCfg.DaqList = new();            
+            CcpXcpCfg = new();                   
         }
 
         public static ModuleXml ReadFile(string xmlPath)
@@ -171,9 +171,17 @@ namespace InfluxShared.FileObjects
         public uint DynIdentStart { get; set; } = 0xF200;
         [XmlElement("DYNAMIC_SIGNAL")]
         public uint DynamicSignal { get; set; } = 0x6A0;
+        [XmlElement("MODULE_IDENT")]
+        public uint RxIdent { get; set; } = 0x7E8;
+        [XmlElement("TESTER_IDENT")]
+        public uint TxIdent { get; set; } = 0x7E0;
+        [XmlElement("IS_EXTENDED")]
+        public bool IsExtended { get; set; } = false;
+        [XmlElement("IS_CANFD")]
+        public bool IsCanFd { get; set; } = false;
     }
 
-    public class XcpConfigXml : IXcpSettings
+    public class CcpXcpConfigXml : ICcpXcpSettings
     {
         XcpDaqListXml _XcpDaqListXml = new();
         List<XcpDaq> _XcpDaqList = new();
@@ -229,7 +237,20 @@ namespace InfluxShared.FileObjects
         public List<string> Cmmds { get; set; } = new(); 
         [XmlElement("COMMANDS")]
         public XcpCommands CmmdsXml { get; set; } = new();
-
+        [XmlElement("IS_XCP")]
+        public bool IsXcp { get; set; } = true;
+        [XmlElement("SYNCH_START_DAQS")]
+        public bool SynchStartDaqChannels { get; set; } = false;
+        [XmlElement("USE_SEED_KEY")]
+        public bool UseSeedKey { get; set; } = false;
+        [XmlElement("SEEDFILE_CAL")]
+        public string SeedFileCal { get; set; } = "";
+        [XmlElement("SEEDFILE_DAQ")]
+        public string SeedFileDaq { get; set; } = "";
+        [XmlElement("SEEDFILE_PGM")]
+        public string SeedFilePgm { get; set; } = "";
+        [XmlElement("SEEDFILE_STIM")]
+        public string SeedFileStim { get; set; } = "";
         private void SetDaqListXml(XcpDaqListXml value)
         {
             _XcpDaqListXml = value;
@@ -279,6 +300,7 @@ namespace InfluxShared.FileObjects
         }
     }
 
+    
     public class XcpEventXml: IXcpEvent
     {
         [XmlElement("NAME")]
@@ -290,7 +312,7 @@ namespace InfluxShared.FileObjects
         [XmlElement("MAX_DAQ_LIST")]
         public int MaxDaqList { get; set; } //Maximum number of DAQ lists in this event channel
         [XmlElement("TIMECYCLE")]
-        public byte TimeCycle { get; set; } //Event channel time cycle
+        public uint TimeCycle { get; set; } //Event channel time cycle
         [XmlElement("TIMEUNIT")]
         public byte TimeUnit { get; set; } //Event channel time unit
         [XmlIgnore]
@@ -320,8 +342,26 @@ namespace InfluxShared.FileObjects
         [XmlElement("EVENT_FIXED")]
         public bool EventFixed { get; set; }
         [XmlIgnore]
-        public List<XcpOdt> Odts { get; set; } = new();
+        public List<Odt> Odts { get; set; } = new();
+        public bool AddOdtItem(ushort itemSize, ushort odtSize, out ushort odtNum, out ushort startBit)
+        {
+            odtNum = 0;
+            startBit = 0;
+            for (int i = 0; i < Odts.Count; i++)
+            {
+                if (Odts[i].FilledSize + itemSize <= odtSize)
+                {
+                    startBit = (ushort)(Odts[i].FilledSize * 8 + 8);
+                    Odts[i].FilledSize += itemSize;
+                    odtNum = (ushort)i;
+                    return true;
+                }
+            }
+            return false;
+        }
     }
+
+    
 
     public class ConfigItemList
     {
@@ -494,6 +534,8 @@ namespace InfluxShared.FileObjects
 
         [XmlElement("UDS_SERVICE_ID")]
         public byte UDSServiceID { get => UDS; set => UDS = value; }  //If service is Xcp used for Daq index
+        [XmlElement("SHORT_UPLOAD")]
+        public bool ShortUpload { get; set; }
         [XmlIgnore]
         public string SamplingStr { get; set; }
         [XmlElement("CHANNEL_NAME")]

@@ -134,29 +134,88 @@ namespace A2lParserLib
             return res;
         }
 
-        public static ulong GetPrescale(this XcpEvent xcpEvent)
+        public static ulong GetPrescale(this XcpEvent ccp_xcp_event, bool isCcp = false)
         {
-            return 1 * (uint)Math.Pow(10, xcpEvent.TimeUnit) * xcpEvent.TimeCycle;
+            if (!isCcp)
+                return (uint)Math.Pow(10, ccp_xcp_event.TimeUnit) * ccp_xcp_event.TimeCycle;
+            else
+                return GetPrescaleCcp(ccp_xcp_event.TimeUnit, ccp_xcp_event.TimeCycle);
         }
 
-        public static string GetPrescaleString(this XcpEvent xcpEvent)
+        public static ulong GetPrescale(this XcpDaq ccp_daq, uint scalingUnit, ulong rate)
         {
-            ulong rateInNanosec = 1 * (uint)Math.Pow(10, xcpEvent.TimeUnit) * xcpEvent.TimeCycle;
-            if (rateInNanosec == 0)
+            return GetPrescaleCcp(scalingUnit, rate);
+        }
+
+        public static string GetPrescaleString(this XcpEvent ccp_xcp_event, bool isCcp = false)
+        {
+            if (isCcp)
             {
-                return $"Synch Channel {xcpEvent.Channel + 1}";
+                return GetPrescaleStringCcp((ushort)ccp_xcp_event.TimeUnit, ccp_xcp_event.TimeCycle);
             }
             else
             {
-                if (rateInNanosec >= 1_000_000_000)
-                    return $"{(double)rateInNanosec / 1000000000} sec"; // Seconds
-                else if (rateInNanosec >= 1_000_000)
-                    return $"{(double)rateInNanosec / 1000000} msec"; // Milliseconds
-                else if (rateInNanosec >= 1000)
-                    return $"{(double)rateInNanosec / 1000} microsec"; // Microseconds
+                ulong rateInNanosec = 1 * (uint)Math.Pow(10, ccp_xcp_event.TimeUnit) * ccp_xcp_event.TimeCycle;
+                if (rateInNanosec == 0)
+                {
+                    return $"Synch Channel {ccp_xcp_event.Channel + 1}";
+                }
                 else
-                    return $"{(double)rateInNanosec} nanosec"; // Nanoseconds
-            }            
+                {
+                    if (rateInNanosec >= 1_000_000_000)
+                        return $"{(double)rateInNanosec / 1000000000} sec"; // Seconds
+                    else if (rateInNanosec >= 1_000_000)
+                        return $"{(double)rateInNanosec / 1000000} msec"; // Milliseconds
+                    else if (rateInNanosec >= 1000)
+                        return $"{(double)rateInNanosec / 1000} microsec"; // Microseconds
+                    else
+                        return $"{(double)rateInNanosec} nanosec"; // Nanoseconds
+                }
+            }
+        }
+
+        private static ulong GetPrescaleCcp(uint scalingUnit, ulong rate)
+        {
+            if (scalingUnit <= 7)
+                return (uint)Math.Pow(10, scalingUnit) * rate;
+            return 0;
+        }
+
+        private static string GetPrescaleStringCcp(ushort scalingUnit, ulong rate)
+        {
+            ulong rateInMicrosec = 100000;
+            if (scalingUnit <= 7)
+            {
+                rateInMicrosec = (uint)Math.Pow(10, scalingUnit) * rate;
+                if (rateInMicrosec >= 1_000_000)
+                    return $"{(double)rateInMicrosec / 1000000} sec"; // Seconds
+                else if (rateInMicrosec >= 1000)
+                    return $"{(double)rateInMicrosec / 1000} msec"; // Milliseconds
+                else
+                    return $"{(double)rateInMicrosec} microsec"; // Microseconds
+            }
+            else if (scalingUnit == 8)
+                return $"{(double)rate} min"; // minutes
+            else if (scalingUnit == 9)
+                return $"{(double)rate} hour"; // hours
+            else if (scalingUnit == 10)
+                return $"{(double)rate} day"; // days
+            else if (scalingUnit == 100)
+                return $"{(double)rate} deg"; // Angular degrees
+            else if (scalingUnit == 101)
+                return $"{(double)rate} rev"; // Revolution 360 degrees
+            else if (scalingUnit == 102)
+                return $"{(double)rate} cycle"; // Cycle 720 degrees
+            else if (scalingUnit == 103)
+                return $"Synch Channel {(double)rate}"; // Cylinder segment
+            else if (scalingUnit == 998)
+                return $"Frame {(double)rate}"; // When frame available
+            else if (scalingUnit == 999)
+                return $"On New Value"; // Always if there's new value
+            else if (scalingUnit == 1000)
+                return $"Non deterministic"; //Without fixed scaling
+
+            return "100 msec";
         }
     }
 }

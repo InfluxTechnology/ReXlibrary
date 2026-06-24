@@ -866,10 +866,17 @@ namespace RXD.Base
                     if (settings.ProcessingRules is not null)
                         settings.ProcessingRules.FirstTime = (FirstTimestamp - FileTimestamp) * TimestampCoeff;
 
-                    if (settings.SignalsDatabase is not null && settings.SignalsDatabase.dbcCollection is not null)
-                        foreach (var msg in settings.SignalsDatabase.dbcCollection)
-                            foreach (BasicItemInfo sig in msg.Signals)
-                                sig.TempObj = null;
+                    if (settings.SignalsDatabase is not null)
+                    {
+                        if (settings.SignalsDatabase.dbcCollection is not null)
+                            foreach (var msg in settings.SignalsDatabase.dbcCollection)
+                                foreach (BasicItemInfo sig in msg.Signals)
+                                    sig.TempObj = null;
+                        if (settings.SignalsDatabase.ldfCollection is not null)
+                            foreach (var msg in settings.SignalsDatabase.ldfCollection)
+                                foreach (BasicItemInfo sig in msg.Signals)
+                                    sig.TempObj = null;
+                    }
 
                     while (dr.ReadNext())
                     {
@@ -910,7 +917,7 @@ namespace RXD.Base
                                                     if ((sig.Type == DBCSignalType.ModeDependent && sig.Mode == modeval) || sig.Type != DBCSignalType.ModeDependent)
                                                         lastval = WriteData(obj, canrec.data.Timestamp, rec.VariableData, ref LastTimestamp[rec.header.UID], ref TimeOffset[rec.header.UID]);
                                                 }
-                                            }                                            
+                                            }
                                         }
                                     break;
                                 case RecordType.CanError:
@@ -924,7 +931,7 @@ namespace RXD.Base
                                             for (int i = 0; i < busMsg.Signals.Count; i++)
                                             {
                                                 var obj = ddata.Object(busMsg.Signals[i], (2u << 30) | ((uint)i << 16) | (uint)id);
-                                                obj.BusChannel = "LIN";
+                                                obj.BusChannel = $"LIN{linrec.BusChannel}";
                                                 WriteData(obj, linrec.data.Timestamp, rec.VariableData, ref LastTimestamp[rec.header.UID], ref TimeOffset[rec.header.UID]);
                                             }
                                         }
@@ -976,13 +983,15 @@ namespace RXD.Base
             UInt32 TimePrecison = Config[BinConfig.BinProp.TimeStampPrecision];
 
             double FileTimestamp = double.NaN;
-            double LastTimestampCan = 0;
-            double TimeOffsetCan = 0;
-            double LastTimestampCanError = 0;
-            double TimeOffsetCanError = 0;
-            double LastTimestampLin = 0;
-            double TimeOffsetLin = 0;
+            double[] LastTimestamp = new double[UInt16.MaxValue + 1];
+            double[] TimeOffset = new double[UInt16.MaxValue + 1];
             UInt32 InitialTimestamp = 0;
+
+            for (var i = 0; i <= UInt16.MaxValue; i++)
+            {
+                LastTimestamp[i] = 0;
+                TimeOffset[i] = (this.TryGetValue(i, out BinBase b) && b.AddOverlap) ? TimeRoll : (UInt64)0;
+            }
 
             void TraceAdd(TraceCollection tc, ref double LastTimestamp, ref double TimeOffset)
             {
@@ -1019,17 +1028,10 @@ namespace RXD.Base
                             case RecordType.Unknown:
                                 break;
                             case RecordType.CanTrace:
-                                TraceAdd(rec.ToTraceRow(TimePrecison), ref LastTimestampCan, ref TimeOffsetCan);
-                                break;
                             case RecordType.CanError:
-                                TraceAdd(rec.ToTraceRow(TimePrecison), ref LastTimestampCanError, ref TimeOffsetCanError);
-                                break;
                             case RecordType.LinTrace:
-                                TraceAdd(rec.ToTraceRow(TimePrecison), ref LastTimestampLin, ref TimeOffsetLin);
-                                break;
                             case RecordType.PreBuffer:
-                                TraceAdd(rec.ToTraceRow(TimePrecison), ref LastTimestampCan, ref TimeOffsetCan);
-                                //ProcessCallback?.Invoke(rec.ToTraceRow(TimePrecison));
+                                TraceAdd(rec.ToTraceRow(TimePrecison), ref LastTimestamp[rec.header.UID], ref TimeOffset[rec.header.UID]);
                                 break;
                             case RecordType.MessageData:
                                 break;

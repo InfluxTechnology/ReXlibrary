@@ -19,14 +19,14 @@
     <Compile Include="$(MSBuildThisFileDirectory)Helpers.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Interfaces\IXcpDaq.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Interfaces\IXcpEvent.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Interfaces\IXcpOdt.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Interfaces\IXcpSettings.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Interfaces\IOdt.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Interfaces\ICcpXcpSettings.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Items\Characteristic.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Items\IA2lItem.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Items\Measurement.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Module.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Settings\XcpDaq.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Settings\XcpOdt.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Settings\Odt.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Settings\XcpSettings.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Settings\XcpEvent.cs" />
   </ItemGroup>

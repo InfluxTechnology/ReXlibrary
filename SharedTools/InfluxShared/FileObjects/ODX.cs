@@ -1,4 +1,4 @@
-﻿/* ------------------------------------
+/* ------------------------------------
  * Author:  Georgi Georgiev
  * Year:    03.2024
  * ------------------------------------
@@ -14,32 +14,66 @@ namespace InfluxShared.FileObjects
 {
     public class ODX : XML
     {
-        private XmlNode odxDiagComms;
-        private XmlNode odxUnitSpec;
-        private XmlNode odxDiagDataDictionarySpec;
-        private XmlNode odxDataObjectProp;
-        private XmlNode odxStructures;
-        private XmlNode odxRequests;
-        private XmlNode odxPosResponses;
-        private XmlNode odxTables;
-        private List<ODX> List = new List<ODX>();
+        // Global ID map: ID attribute value → XmlNode. Built once from entire document.
+        private Dictionary<string, XmlNode> _idMap = new Dictionary<string, XmlNode>();
+
         private Dictionary<string, uint> IDList = new Dictionary<string, uint>();
+        private List<ODX> List = new List<ODX>();
         private string path;
         private ushort BytePos;
 
         public string FileName { get; set; }
         public XmlDocument xmlDoc = new XmlDocument();
 
-        private void LoadTmpNodes(ODX odx, XmlNode node)
+        // Build a global map of ID attribute → XmlNode by walking the entire document once.
+        private void BuildIdMap(XmlNode node)
         {
-            odx.odxUnitSpec = XmlNode(node, "UNIT-SPEC");
-            odx.odxDiagDataDictionarySpec = XmlNode(node, "DIAG-DATA-DICTIONARY-SPEC");
-            odx.odxDiagComms = XmlNode(node, "DIAG-COMMS");
-            odx.odxRequests = XmlNode(node, "REQUESTS");
-            odx.odxPosResponses = XmlNode(node, "POS-RESPONSES");
-            odx.odxDataObjectProp = XmlNode(odxDiagDataDictionarySpec, "DATA-OBJECT-PROPS");
-            odx.odxStructures = XmlNode(odxDiagDataDictionarySpec, "STRUCTURES");
-            odx.odxTables = XmlNode(odxDiagDataDictionarySpec, "TABLES");
+            if (node == null)
+                return;
+            string id = AttrByName(node, "ID");
+            if (id != "")
+                _idMap[id] = node;
+            foreach (XmlNode child in node.ChildNodes)
+                BuildIdMap(child);
+        }
+
+        // Look up any node by its ID attribute value.
+        private XmlNode FindById(string id)
+        {
+            if (string.IsNullOrEmpty(id))
+                return null;
+            _idMap.TryGetValue(id, out XmlNode found);
+            return found;
+        }
+
+        // Find a DATA-OBJECT-PROP whose SHORT-NAME child text matches the given name.
+        private XmlNode FindByShortName(string shortName)
+        {
+            if (string.IsNullOrEmpty(shortName))
+                return null;
+            foreach (var kvp in _idMap)
+            {
+                XmlNode sn = XmlNode(kvp.Value, "SHORT-NAME");
+                if (sn != null && sn.InnerText == shortName)
+                    return kvp.Value;
+            }
+            return null;
+        }
+
+        // Collect all DIAG-SERVICE nodes from every DIAG-COMMS section in the document.
+        private void CollectDiagServices(XmlNode node, List<XmlNode> services)
+        {
+            if (node == null)
+                return;
+            if (node.Name == "DIAG-COMMS")
+            {
+                foreach (XmlNode child in node.ChildNodes)
+                    if (child.Name == "DIAG-SERVICE")
+                        services.Add(child);
+                return;
+            }
+            foreach (XmlNode child in node.ChildNodes)
+                CollectDiagServices(child, services);
         }
 
         private void AddMsg(ICanMessage msg)
@@ -117,47 +151,6 @@ namespace InfluxShared.FileObjects
             return null;
         }
 
-        private void CheckExternalFiles()
-        {
-            List<XmlNode> nodes = new List<XmlNode>();
-
-            bool existsInList(string fileName)
-            {
-                foreach (ODX odx in List)
-                    if (odx.FileName.Contains(fileName))
-                        return true;
-
-                return false;
-            }
-
-            if (odxDiagComms != null)
-                foreach (XmlNode child in odxDiagComms.ChildNodes)
-                {
-                    XmlNode fcrs = XmlNode(child, "FUNCT-CLASS-REFS");
-                    if (fcrs == null)
-                        continue;
-
-                    XmlNode fcr = XmlNode(fcrs, "FUNCT-CLASS-REF");
-                    string docRef = AttrByName(fcr, "DOCREF");
-                    if (existsInList(docRef) || (docRef == ""))
-                        continue;
-
-                    ODX odx = ODXFromList(docRef);
-                }
-
-            /*            if (odxStructures != null)
-                            foreach (XmlNode child in odxStructures.ChildNodes)
-                            {
-                                XmlNode prms = XmlNode(child, "PARAMS");
-                                foreach (XmlNode prm in prms.ChildNodes)
-                                {
-                                    string docRef = AttrByName(XmlNode(prm, "DOP-REF"), "DOCREF");
-                                    if (existsInList(docRef) || (docRef == ""))
-                                        continue;
-                                }
-                            }*/
-        }
-
         private ushort BytePosition(XmlNode node)
         {
             if (node.ParentNode.ParentNode.Name == "STRUCTURE")
@@ -190,12 +183,13 @@ namespace InfluxShared.FileObjects
 
             return null;
         }
+
         private void ExtractUnits(XmlNode node, ICanSignal sig)
         {
             if (node == null)
                 return;
 
-            XmlNode unit = XmlNode(odxUnitSpec, AttrByName(node, "ID-REF"), false, "ID");
+            XmlNode unit = FindById(AttrByName(node, "ID-REF"));
             if (unit == null)
                 return;
 
@@ -228,16 +222,14 @@ namespace InfluxShared.FileObjects
 
         private XmlNode ObjFromExternalFile(string fileName, string Ref)
         {
-            //return null;
+            if (string.IsNullOrEmpty(fileName))
+                return null;
+
             ODX odx = ODXFromList(fileName);
             if (odx == null)
                 return null;
 
-            XmlNode res;
-            res = odx.XmlNode(odx.odxDataObjectProp, Ref, false, "ID");
-            if (res == null)
-                res = odx.XmlNode(odx.odxRequests, Ref, false, "ID");
-            return res;
+            return odx.FindById(Ref);
         }
 
         private void ExtractTABLE(XmlNode node)
@@ -250,7 +242,7 @@ namespace InfluxShared.FileObjects
                 return;
 
             string Ref = AttrByName(XmlNode(node, "TABLE-REF"), "ID-REF");
-            XmlNode table = XmlNode(odxTables, Ref, false, "ID");
+            XmlNode table = FindById(Ref);
             if (table == null)
                 return;
 
@@ -260,7 +252,7 @@ namespace InfluxShared.FileObjects
                     continue;
                 string key = strContent(child, "KEY");
                 Ref = AttrByName(XmlNode(child, "STRUCTURE-REF"), "ID-REF");
-                XmlNode struc = XmlNode(odxStructures, Ref, false, "ID");
+                XmlNode struc = FindById(Ref);
 
                 foreach (KeyValuePair<string, uint> pair in IDList)
                     if (pair.Key == key)
@@ -282,7 +274,7 @@ namespace InfluxShared.FileObjects
                 return;
 
             string Ref = AttrByName(XmlNode(node, "BASIC-STRUCTURE-REF"), "ID-REF");
-            XmlNode struc = XmlNode(odxStructures, Ref, false, "ID");
+            XmlNode struc = FindById(Ref);
             ExtractPARAM(struc, msg);
         }
 
@@ -294,7 +286,8 @@ namespace InfluxShared.FileObjects
             XmlNode Ref = XmlNode(node, "DOP-REF");
             string idRef = AttrByName(Ref, "ID-REF");
             string docRef = AttrByName(Ref, "DOCREF");
-            XmlNode dop = XmlNode(odxDiagDataDictionarySpec, idRef, false, "ID");
+
+            XmlNode dop = FindById(idRef);
             if (dop == null)
                 dop = ObjFromExternalFile(docRef, idRef);
 
@@ -305,11 +298,10 @@ namespace InfluxShared.FileObjects
                     return;
                 }
 
-            XmlNode struc = XmlNode(odxStructures, idRef, false, "ID");
-            if (struc != null)
+            if (dop != null && dop.Name.ToUpper() == "STRUCTURE")
             {
-                msg.DLC = (byte)uintContent(struc, "BYTE-SIZE");
-                ExtractPARAM(struc, msg);
+                msg.DLC = (byte)uintContent(dop, "BYTE-SIZE");
+                ExtractPARAM(dop, msg);
                 return;
             }
 
@@ -352,7 +344,7 @@ namespace InfluxShared.FileObjects
             string idRef = AttrByName(reqRef, "ID-REF");
             string docRef = AttrByName(reqRef, "DOCREF");
 
-            XmlNode req = XmlNode(odxRequests, Ref, false, "ID");
+            XmlNode req = FindById(Ref);
             if (req == null)
                 req = ObjFromExternalFile(docRef, idRef);
 
@@ -371,8 +363,11 @@ namespace InfluxShared.FileObjects
                 return;
 
             IDList.Clear();
-            Ref = AttrByName(XmlNode(prm, "DOP-SNREF"), "SHORT-NAME");
-            XmlNode dop = XmlNode(odxDataObjectProp, Ref, false, "ID");
+            string shortName = AttrByName(XmlNode(prm, "DOP-SNREF"), "SHORT-NAME");
+            if (string.IsNullOrEmpty(shortName))
+                return;
+            // DOP-SNREF references a DATA-OBJECT-PROP by its SHORT-NAME child text (not its ID attribute)
+            XmlNode dop = FindByShortName(shortName);
             if (strContent(XmlNode(dop, "COMPU-METHOD"), "CATEGORY").ToUpper() != "TEXTTABLE")
                 return;
             XmlNode citp = XmlNode(XmlNode(dop, "COMPU-METHOD"), "COMPU-INTERNAL-TO-PHYS");
@@ -391,7 +386,7 @@ namespace InfluxShared.FileObjects
             XmlNode prr = XmlNode(node, "POS-RESPONSE-REFS");
             string Ref = AttrByName(XmlNode(prr, "POS-RESPONSE-REF"), "ID-REF");
 
-            XmlNode resp = XmlNode(odxPosResponses, Ref, false, "ID");
+            XmlNode resp = FindById(Ref);
 
             XmlNode prm = PARAMBySemantic(XmlNode(resp, "PARAMS"), "DATA-ID");
             if (prm != null)
@@ -407,7 +402,7 @@ namespace InfluxShared.FileObjects
 
             XmlNode prr = XmlNode(node, "POS-RESPONSE-REFS");
             string Ref = AttrByName(XmlNode(prr, "POS-RESPONSE-REF"), "ID-REF");
-            XmlNode resp = XmlNode(odxPosResponses, Ref, false, "ID");
+            XmlNode resp = FindById(Ref);
         }
 
         private void CreateServiceByID(XmlNode node, uint id)
@@ -429,19 +424,10 @@ namespace InfluxShared.FileObjects
         public ODX()
         {
         }
+
         public void LoadFromFile(string filename, bool addToList = false)
         {
-            // addToList = true чете ODX файл, за който има препратка в основния файл
-
-            void DoProcess(ODX odx)
-            {
-                odx.LoadTmpNodes(this, odx.xmlDoc);
-                if (odx.odxDiagComms != null)
-                    foreach (XmlNode child in odx.odxDiagComms.ChildNodes)
-                    {
-                        CreateServiceByID(child, 0x22);
-                    }
-            }
+            // addToList = true reads an ODX file referenced from the main file
 
             path = Path.GetDirectoryName(filename) + "\\";
             FileName = Path.GetFileName(filename);
@@ -450,8 +436,6 @@ namespace InfluxShared.FileObjects
             xmlDoc = new XmlDocument();
             xmlDoc.Load(filename);
 
-            XmlNode node = xmlDoc.DocumentElement.FirstChild;
-
             // MDX file
             if ((xmlDoc.DocumentElement.Name == "MDX") || (xmlDoc.DocumentElement.Name == "GDX"))
             {
@@ -459,15 +443,20 @@ namespace InfluxShared.FileObjects
                 return;
             }
 
-            LoadTmpNodes(this, node);
+            // Build global ID map from the entire document for O(1) lookups.
+            _idMap.Clear();
+            BuildIdMap(xmlDoc.DocumentElement);
 
             if (addToList)
                 return;
 
-            //CheckExternalFiles();
-            DoProcess(this);
-            foreach (ODX odx in List)
-                DoProcess(odx);
+            // Collect every DIAG-SERVICE node from every DIAG-COMMS section in the document,
+            // regardless of which layer (ECU-SHARED-DATAS, BASE-VARIANT, ECU-VARIANT) it lives in.
+            List<XmlNode> services = new List<XmlNode>();
+            CollectDiagServices(xmlDoc.DocumentElement, services);
+
+            foreach (XmlNode service in services)
+                CreateServiceByID(service, 0x22);
         }
 
         // MDX (GDX) support
@@ -604,7 +593,7 @@ namespace InfluxShared.FileObjects
             sig.Conversion.Formula.CoeffB = doubleContent(resolution, "RESOLUTION", 1);
             sig.Conversion.Formula.CoeffC = doubleContent(numParams, "OFFSET");
 
-            // ailetnative way to calc CoeffB            
+            // ailetnative way to calc CoeffB
             if ((AttrByName(resolution, "numerator") != "") && (AttrByName(resolution, "denominator") != ""))
             {
                 double numerator = ConvertToDouble(AttrByName(resolution, "numerator"), 1);

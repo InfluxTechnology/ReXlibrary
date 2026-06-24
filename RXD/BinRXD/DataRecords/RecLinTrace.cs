@@ -107,6 +107,7 @@ namespace RXD.DataRecords
 
                     // Copy fixed length data
                     frame.data.Timestamp = data.Timestamp;
+                    frame.data.BusChannel = (byte)(BusChannel + 1);
                     frame.data.LinID = data.LinID;
 
                     frames.Add(frame);

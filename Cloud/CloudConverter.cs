@@ -4,7 +4,10 @@ using DbcParserLib.Influx;
 using Influx.Shared.Helpers;
 using InfluxShared.FileObjects;
 using MDF4xx.IO;
+using Newtonsoft.Json;
 using RXD.Base;
+using System.Globalization;
+using System.Text.RegularExpressions;
 
 namespace Cloud
 {
@@ -64,12 +67,11 @@ namespace Cloud
             else if (Path.GetExtension(filename).ToLower() == ".rxd")
                 try
                 {
-                    List<DBC?> dbcList = await LoadDBCList(Bucket);
+                    ExportCollections signalsCollection = await LoadSignalsDatabase(Bucket);
                     Log?.Log("GetRxd!");
                     Stream rxdStream = await Storage.GetFile(Bucket, filename.Replace(Bucket + '/', ""));
                     Log?.Log($"Memory used: {GC.GetTotalMemory(false) / (1024 * 1024)} MB");
-                    ExportDbcCollection signalsCollection = DbcToInfluxObj.LoadExportSignalsFromDBC(dbcList);
-                    Log?.Log($"Memory after DBC used: {GC.GetTotalMemory(false) / (1024 * 1024)} MB");
+                    Log?.Log($"Memory after signals DB used: {GC.GetTotalMemory(false) / (1024 * 1024)} MB");
                     if (Config.SynchConfig.enabled)
                     {
                         await SynchExportToMdf(filename);
@@ -88,7 +90,7 @@ namespace Cloud
                                 var export = new BinRXD.ExportSettings()
                                 {
                                     StorageCache = StorageCacheType.Memory,
-                                    SignalsDatabase = new() { dbcCollection = signalsCollection }
+                                    SignalsDatabase = signalsCollection
                                 };
                                 Log?.Log($"Memory used after export settings created: {GC.GetTotalMemory(false) / (1024 * 1024)} MB");
                                 /*foreach (var collection in export.SignalsDatabase.dbcCollection)
@@ -196,6 +198,16 @@ namespace Cloud
                     return false;
                 }
             return true;
+        }
+
+        private async Task<ExportCollections> LoadSignalsDatabase(string bucket)
+        {
+            ExportCollections signalsDatabase = new()
+            {
+                dbcCollection = DbcToInfluxObj.LoadExportSignalsFromDBC(await LoadDBCList(bucket)),
+                ldfCollection = await LoadLDFSignals(bucket)
+            };
+            return signalsDatabase;
         }
 
         private async Task SynchExportToMdf(string filename)
@@ -333,6 +345,283 @@ namespace Cloud
                 listDbc.Add(influxDBC);
             }
             return listDbc;
+        }
+
+        private async Task<ExportLdfCollection> LoadLDFSignals(string bucket)
+        {
+            Log?.Log("Loading LDF");
+            ExportLdfCollection signalsCollection = new();
+            for (byte i = 0; i < 4; i++)
+            {
+                Stream ldfStream = null;
+                string ldfPath = "";
+                foreach (string candidate in new[] { $"ldf_lin{i}.ldf", $"ldf_lin{i}.json" })
+                {
+                    ldfPath = Path.Combine(LoggerDir, candidate).Replace("\\", "/");
+                    ldfStream = await Storage.GetFile(bucket, ldfPath);
+                    if (ldfStream is not null)
+                        break;
+                }
+
+                if (ldfStream is null)
+                {
+                    Log?.Log($"LDF File Not Found! {Path.Combine(LoggerDir, $"ldf_lin{i}.ldf").Replace("\\", "/")}");
+                    continue;
+                }
+
+                using (ldfStream)
+                {
+                    LDF ldf = ParseLdf(ldfStream, Path.GetFileName(ldfPath));
+                    if (ldf is null)
+                    {
+                        Log?.Log($"Error parsing LDF file {ldfPath}");
+                        continue;
+                    }
+
+                    Log?.Log($"LDF Messages count {Path.GetFileName(ldfPath)}: {ldf.Messages.Count}");
+                    foreach (var msg in ldf.Messages)
+                    {
+                        var expmsg = signalsCollection.AddMessage(i, msg);
+                        foreach (var sig in msg.Items)
+                            expmsg.AddSignal(sig);
+                    }
+                }
+            }
+
+            return signalsCollection;
+        }
+
+        private static LDF ParseLdf(Stream ldfStream, string fileName)
+        {
+            using StreamReader reader = new(ldfStream, leaveOpen: true);
+            string text = reader.ReadToEnd();
+            if (string.IsNullOrWhiteSpace(text))
+                return null;
+
+            string trimmed = text.TrimStart();
+            if (trimmed.StartsWith("{") || trimmed.StartsWith("["))
+            {
+                var jsonLdf = JsonConvert.DeserializeObject<LDF>(text);
+                if (jsonLdf != null)
+                {
+                    jsonLdf.FileName ??= fileName;
+                    jsonLdf.FileNameSerialized ??= fileName;
+                }
+                return jsonLdf;
+            }
+
+            return ParseLdfText(text, fileName);
+        }
+
+        private static LDF ParseLdfText(string text, string fileName)
+        {
+            text = Regex.Replace(text, @"/\*.*?\*/", "", RegexOptions.Singleline);
+            text = Regex.Replace(text, @"//.*?$", "", RegexOptions.Multiline);
+
+            var signalSizes = ParseSignalSizes(ExtractSection(text, "Signals"));
+            var encodings = ParseEncodings(ExtractSection(text, "Signal_encoding_types"));
+            var signalRepresentations = ParseSignalRepresentations(ExtractSection(text, "Signal_representation"), encodings);
+
+            LDF ldf = new()
+            {
+                FileName = fileName,
+                FileNameSerialized = fileName
+            };
+
+            string framesSection = ExtractSection(text, "Frames");
+            if (string.IsNullOrWhiteSpace(framesSection))
+                return ldf;
+
+            int index = 0;
+            while (index < framesSection.Length)
+            {
+                Match header = Regex.Match(
+                    framesSection.Substring(index),
+                    @"^\s*([A-Za-z_]\w*)\s*:\s*([^,;]+)\s*,\s*([^,;]+)\s*,\s*(\d+)\s*\{",
+                    RegexOptions.Multiline);
+                if (!header.Success)
+                    break;
+
+                index += header.Index;
+                int bodyStart = index + header.Length;
+                int bodyEnd = FindClosingBrace(framesSection, bodyStart - 1);
+                if (bodyEnd < 0)
+                    break;
+
+                LdfMessage message = new()
+                {
+                    Name = header.Groups[1].Value.Trim(),
+                    ID = ParseInteger(header.Groups[2].Value),
+                    Publisher = header.Groups[3].Value.Trim(),
+                    DLC = byte.TryParse(header.Groups[4].Value, out byte dlc) ? dlc : (byte)0,
+                    Log = true
+                };
+
+                string body = framesSection.Substring(bodyStart, bodyEnd - bodyStart);
+                foreach (Match signalMatch in Regex.Matches(body, @"^\s*([A-Za-z_]\w*)\s*,\s*(\d+)\s*;", RegexOptions.Multiline))
+                {
+                    string signalName = signalMatch.Groups[1].Value.Trim();
+                    signalSizes.TryGetValue(signalName, out ushort bitCount);
+                    signalRepresentations.TryGetValue(signalName, out SignalEncoding encoding);
+
+                    LdfItem item = new()
+                    {
+                        Name = signalName,
+                        StartBit = ushort.Parse(signalMatch.Groups[2].Value, CultureInfo.InvariantCulture),
+                        BitCount = bitCount,
+                        MinValue = encoding?.MinValue ?? 0,
+                        MaxValue = encoding?.MaxValue ?? 0,
+                        Units = encoding?.Units ?? string.Empty,
+                        Log = true,
+                        SourceNode = message.Publisher,
+                        Comment = "",
+                        Ident = message.ID
+                    };
+                    item.Conversion.Type = InfluxShared.FileObjects.ConversionType.Formula;
+                    item.Conversion.Formula.CoeffB = encoding?.Factor ?? 1;
+                    item.Conversion.Formula.CoeffC = encoding?.Offset ?? 0;
+                    item.Conversion.Formula.CoeffF = 1;
+                    message.Items.Add(item);
+                }
+
+                ldf.Messages.Add(message);
+                index = bodyEnd + 1;
+            }
+
+            return ldf;
+        }
+
+        private static Dictionary<string, ushort> ParseSignalSizes(string signalsSection)
+        {
+            Dictionary<string, ushort> signalSizes = new(StringComparer.OrdinalIgnoreCase);
+            foreach (Match match in Regex.Matches(signalsSection ?? "", @"^\s*([A-Za-z_]\w*)\s*:\s*(\d+)\s*,.*?;", RegexOptions.Multiline))
+                signalSizes[match.Groups[1].Value.Trim()] = ushort.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture);
+            return signalSizes;
+        }
+
+        private static Dictionary<string, SignalEncoding> ParseSignalRepresentations(string representationsSection, Dictionary<string, SignalEncoding> encodings)
+        {
+            Dictionary<string, SignalEncoding> signalRepresentations = new(StringComparer.OrdinalIgnoreCase);
+            foreach (Match match in Regex.Matches(representationsSection ?? "", @"^\s*([A-Za-z_]\w*)\s*:\s*([^;]+);", RegexOptions.Multiline))
+            {
+                string left = match.Groups[1].Value.Trim();
+                string right = match.Groups[2].Value.Trim();
+                if (encodings.ContainsKey(left))
+                {
+                    foreach (string signalName in right.Split(',').Select(s => s.Trim()).Where(s => !string.IsNullOrWhiteSpace(s)))
+                        signalRepresentations[signalName] = encodings[left];
+                }
+                else
+                {
+                    string encodingName = right.Split(',').Select(s => s.Trim()).FirstOrDefault(s => !string.IsNullOrWhiteSpace(s));
+                    if (encodingName != null && encodings.TryGetValue(encodingName, out SignalEncoding encoding))
+                        signalRepresentations[left] = encoding;
+                }
+            }
+            return signalRepresentations;
+        }
+
+        private static Dictionary<string, SignalEncoding> ParseEncodings(string encodingsSection)
+        {
+            Dictionary<string, SignalEncoding> encodings = new(StringComparer.OrdinalIgnoreCase);
+            int index = 0;
+            while (index < (encodingsSection?.Length ?? 0))
+            {
+                Match header = Regex.Match(encodingsSection.Substring(index), @"^\s*([A-Za-z_]\w*)\s*\{", RegexOptions.Multiline);
+                if (!header.Success)
+                    break;
+
+                index += header.Index;
+                int bodyStart = index + header.Length;
+                int bodyEnd = FindClosingBrace(encodingsSection, bodyStart - 1);
+                if (bodyEnd < 0)
+                    break;
+
+                SignalEncoding encoding = new() { EncodingName = header.Groups[1].Value.Trim() };
+                string body = encodingsSection.Substring(bodyStart, bodyEnd - bodyStart);
+                Match physicalValue = Regex.Match(body, @"physical_value\s*,\s*([^;]+);", RegexOptions.IgnoreCase);
+                if (physicalValue.Success)
+                {
+                    MatchCollection numbers = Regex.Matches(physicalValue.Groups[1].Value, @"[-+]?(?:0x[0-9A-Fa-f]+|\d+\.?\d*)");
+                    if (numbers.Count >= 4)
+                    {
+                        encoding.MinValue = ParseDouble(numbers[0].Value);
+                        encoding.MaxValue = ParseDouble(numbers[1].Value);
+                        encoding.Factor = ParseDouble(numbers[2].Value);
+                        encoding.Offset = ParseDouble(numbers[3].Value);
+                    }
+
+                    Match unit = Regex.Match(physicalValue.Groups[1].Value, "\"([^\"]*)\"");
+                    if (unit.Success)
+                        encoding.Units = unit.Groups[1].Value;
+                }
+
+                encodings[encoding.EncodingName] = encoding;
+                index = bodyEnd + 1;
+            }
+
+            return encodings;
+        }
+
+        private static string ExtractSection(string text, string sectionName)
+        {
+            int nameIndex = CultureInfo.InvariantCulture.CompareInfo.IndexOf(text, sectionName, CompareOptions.IgnoreCase);
+            if (nameIndex < 0)
+                return string.Empty;
+
+            int openIndex = text.IndexOf('{', nameIndex);
+            if (openIndex < 0)
+                return string.Empty;
+
+            int closeIndex = FindClosingBrace(text, openIndex);
+            if (closeIndex < 0)
+                return string.Empty;
+
+            return text.Substring(openIndex + 1, closeIndex - openIndex - 1);
+        }
+
+        private static int FindClosingBrace(string text, int openIndex)
+        {
+            int depth = 0;
+            for (int i = openIndex; i < text.Length; i++)
+            {
+                if (text[i] == '{')
+                    depth++;
+                else if (text[i] == '}')
+                {
+                    depth--;
+                    if (depth == 0)
+                        return i;
+                }
+            }
+
+            return -1;
+        }
+
+        private static uint ParseInteger(string value)
+        {
+            value = value.Trim();
+            return value.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
+                ? System.Convert.ToUInt32(value.Substring(2), 16)
+                : System.Convert.ToUInt32(value, CultureInfo.InvariantCulture);
+        }
+
+        private static double ParseDouble(string value)
+        {
+            value = value.Trim();
+            if (value.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+                return System.Convert.ToInt64(value.Substring(2), 16);
+            return double.Parse(value, CultureInfo.InvariantCulture);
+        }
+
+        private class SignalEncoding
+        {
+            public string EncodingName { get; set; }
+            public double Factor { get; set; } = 1;
+            public double Offset { get; set; }
+            public double MinValue { get; set; }
+            public double MaxValue { get; set; }
+            public string Units { get; set; } = string.Empty;
         }
 
         public async Task<Stream> GetFile(string bucket, string file)

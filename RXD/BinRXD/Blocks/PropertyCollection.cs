@@ -153,6 +153,14 @@ namespace RXD.Blocks
                         Type propType = property.Value.PropType.IsEnum ? Enum.GetUnderlyingType(property.Value.PropType) : property.Value.PropType;
                         if (propType == typeof(string))
                             SetProperty(property.Key, new string(br.ReadChars(property.Value.Size)));
+                        else if (propType == typeof(string[]))
+                        {
+                            byte[] stringSizes = property.Value.SubElementSizes?.Value as byte[] ?? Array.Empty<byte>();
+                            string[] propdata = new string[stringSizes.Length];
+                            for (int i = 0; i < stringSizes.Length; i++)
+                                propdata[i] = new string(br.ReadChars(stringSizes[i]));
+                            SetProperty(property.Key, propdata);
+                        }
                         else if (propType.IsArray)
                         {
                             Type elType = property.Value.PropType.GetElementType();

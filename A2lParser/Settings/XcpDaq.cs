@@ -21,7 +21,7 @@ namespace A2lParserLib.Settings
             set => Ident = value.ConvertFromHex();
         }
         public bool EventFixed { get; set; }
-        public List<XcpOdt> Odts { get; set; } = new ();
+        public List<Odt> Odts { get; set; } = new ();
         public bool AddOdtItem(ushort itemSize, ushort odtSize, out ushort odtNum, out ushort startBit)
         {
             odtNum = 0;

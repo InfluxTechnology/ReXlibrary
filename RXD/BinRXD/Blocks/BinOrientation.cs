@@ -1,29 +1,35 @@
 ﻿using InfluxShared.FileObjects;
 using System;
+using System.Collections.Generic;
+using System.Text;
+using static RXD.Blocks.BinIMUConfiguration;
 
 namespace RXD.Blocks
 {
-    public enum AxisType : byte
+    public class BinOrientation : BinBase
     {
-        X,
-        Y,
-        Z,
-        IMPACT
-    }
+        public enum Orientation_Angle : byte
+        {
+            PITCH,
+            ROLL,
+            YAW
+        }
 
-    public class BinGyro : BinBase
-    {
+        public enum Orientation_Calculation_Method_Type : byte
+        {
+            DEFAULT,
+        }
+
         internal enum BinProp
         {
             PhysicalNumber,
-            Axis,
-            SamplingRate,
-            RangeHi,
-            RangeLow,
+            CalculationMethod,
+            Angle,
+            SamplingRate
         }
 
         #region Do not touch these
-        public BinGyro(BinHeader hs = null) : base(hs) { }
+        public BinOrientation(BinHeader hs = null) : base(hs) { }
 
         internal dynamic this[BinProp index]
         {
@@ -32,8 +38,9 @@ namespace RXD.Blocks
         }
         #endregion
 
-        public override string GetName => $"Gyroscope {this[BinProp.Axis]}";
-        public override string GetUnits => "dps";
+        public override string GetName => $"Orientation {this[BinProp.Angle]}";
+        //public override string GetUnits => "dps";
+
         public override ChannelDescriptor GetDataDescriptor => new ChannelDescriptor()
         { StartBit = 0, BitCount = 32, isIntel = true, HexType = typeof(Single), conversionType = ConversionType.None, Name = GetName, Units = GetUnits };
 
@@ -42,10 +49,9 @@ namespace RXD.Blocks
             Versions[1] = new Action(() =>
             {
                 data.AddProperty(BinProp.PhysicalNumber, typeof(byte));
-                data.AddProperty(BinProp.Axis, typeof(AxisType));
+                data.AddProperty(BinProp.CalculationMethod, typeof(Orientation_Calculation_Method_Type));
+                data.AddProperty(BinProp.Angle, typeof(Orientation_Angle));
                 data.AddProperty(BinProp.SamplingRate, typeof(UInt16));
-                data.AddProperty(BinProp.RangeHi, typeof(Single));
-                data.AddProperty(BinProp.RangeLow, typeof(Single));
 
                 AddOutput("UID");
             });

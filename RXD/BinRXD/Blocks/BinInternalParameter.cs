@@ -1,4 +1,5 @@
-﻿using System;
+﻿using InfluxShared.FileObjects;
+using System;
 
 namespace RXD.Blocks
 {
@@ -20,7 +21,9 @@ namespace RXD.Blocks
             RTC,
             Serial_Number,
             TimeStamp,
-            Mobile_Loop_Status
+            Mobile_Loop_Status,
+            IMU_Temperature,
+            MCU_Temperature,
         }
 
         public enum Value_Type : byte
@@ -55,6 +58,11 @@ namespace RXD.Blocks
             set => data.SetProperty(index.ToString(), value);
         }
         #endregion
+
+        public override string GetName => $"IntParam_{this[BinProp.Parameter_Type]}";
+        public override string GetUnits => "";
+        public override ChannelDescriptor GetDataDescriptor => new ChannelDescriptor()
+        { StartBit = 0, BitCount = 32, isIntel = true, HexType = typeof(Single), conversionType = ConversionType.None, Name = GetName, Units = GetUnits };
 
         internal override void SetupVersions()
         {

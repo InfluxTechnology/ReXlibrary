@@ -22,6 +22,7 @@ namespace A2lParserLib.Items
         double MaxValue { get; set; }
         byte Daq { get; set; }
         ushort Size { get;set; }
+        //ItemType ItemType { get; set; }
         CompuMethod CompuMethod { get; set; }
     }
 }

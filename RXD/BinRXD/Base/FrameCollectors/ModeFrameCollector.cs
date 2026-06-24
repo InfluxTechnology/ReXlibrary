@@ -6,7 +6,7 @@ namespace RXD.Base.FrameCollectors
 {
     internal class ModeFrameCollector : IFrameCollector
     {
-        static MessageFlags FlagsMask = MessageFlags.IDE | MessageFlags.EDL | MessageFlags.BRS | MessageFlags.SRR | MessageFlags.DIR;
+        static MessageFlags FlagsMask = /*MessageFlags.IDE |*/ MessageFlags.EDL | MessageFlags.BRS | MessageFlags.SRR | MessageFlags.DIR;
         static MessageFlags FlagsTxValue = MessageFlags.DIR;
         static MessageFlags FlagsRxValue = 0;
 
@@ -232,7 +232,7 @@ namespace RXD.Base.FrameCollectors
             }
             else
             {
-                if (msg.data.CanID != data.rx.Ident) 
+                if (msg.data.CanID != data.rx.Ident || msg.data.Flags != (data.rx[0] as RecCanTrace).data.Flags)
                     return false;
 
                 if (FrameType == ConsecutiveFrame && (msg.VariableData[0] & FrameSequenceIdMask) == ((1 + data.rx[data.rx.Count - 1].VariableData[0]) & FrameSequenceIdMask))

@@ -208,6 +208,7 @@ namespace RXD.Base
 
         void FixGnssTimestamp(RecRaw rec)
         {
+            return;
             if (rec.LinkedBin.BinType == BlockType.GNSSMessage)
             {
                 if (LastReadRecBinType == BlockType.GNSSMessage)
